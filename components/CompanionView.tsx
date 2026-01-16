@@ -19,7 +19,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   const [isTyping, setIsTyping] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
   const [isModelSpeaking, setIsModelSpeaking] = useState(false);
-  const [isModelProcessing, setIsModelProcessing] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [viewMode, setViewMode] = useState<'chat' | 'ledger' | 'summary'>('chat');
@@ -29,11 +28,13 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
-  const lastSavedTranscriptionLength = useRef<number>(0);
+  
+  // Refs to accumulate transcripts during a live session to prevent data loss on closure
+  const liveSessionData = useRef<{ user: string; model: string }>({ user: '', model: '' });
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [project.messages, isTyping, currentTranscription, isModelProcessing]);
+  }, [project.messages, isTyping, currentTranscription]);
 
   useEffect(() => {
     if (project.messages.length === 0 && !isTyping) {
@@ -121,26 +122,70 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     } catch (e) { console.error(e); } finally { setCommitting(false); }
   };
 
+  // Flushes accumulated live transcripts to the message history
+  const saveLiveSessionData = () => {
+    const { user, model } = liveSessionData.current;
+    if (!user.trim() && !model.trim()) return;
+
+    const newMessages: Message[] = [];
+    if (user.trim()) {
+        newMessages.push({ id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() });
+    }
+    if (model.trim()) {
+        newMessages.push({ id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() });
+    }
+
+    if (newMessages.length > 0) {
+        updateProject(project.id, { messages: [...project.messages, ...newMessages] });
+        // Reset buffers
+        liveSessionData.current = { user: '', model: '' };
+        setCurrentTranscription('');
+    }
+  };
+
   const toggleLiveSession = async () => {
     if (isLiveActive) {
       audioRecorderRef.current?.stop();
       audioStreamerRef.current?.stop();
       setIsLiveActive(false);
+      // Data is saved via onclose/saveLiveSessionData
       return;
     }
+    
     setIsLiveActive(true);
+    liveSessionData.current = { user: '', model: '' };
+    
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
+    
+    // Construct rich context to prevent hallucinations
+    const historyContext = project.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    const fullSystemInstruction = `
+${SYSTEM_INSTRUCTION_BASE}
+${persona.instruction}
+
+PROJECT CONTEXT:
+Title: "${project.title}"
+Genre: ${project.genre}
+Current Soul Summary: ${project.soulSummary}
+
+RECENT CHAT HISTORY:
+${historyContext}
+
+INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of the project details above.
+`;
+
     try {
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: SYSTEM_INSTRUCTION_BASE + "\n" + persona.instruction,
+          systemInstruction: fullSystemInstruction,
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: persona.voice } } },
           inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onopen: async () => {
@@ -155,18 +200,52 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
               audioStreamerRef.current?.play(data);
               setTimeout(() => setIsModelSpeaking(false), 2500); 
             }
+            
+            // Capture User Speech
             if (msg.serverContent?.inputTranscription) {
-              setCurrentTranscription(prev => prev + ' ' + msg.serverContent?.inputTranscription?.text);
+              const text = msg.serverContent.inputTranscription.text;
+              if (text) {
+                  liveSessionData.current.user += " " + text;
+                  setCurrentTranscription(prev => prev + " " + text);
+              }
             }
+            
+            // Capture Model Speech
+            if (msg.serverContent?.outputTranscription) {
+              const text = msg.serverContent.outputTranscription.text;
+              if (text) {
+                  liveSessionData.current.model += " " + text;
+              }
+            }
+
+            // Flush on Turn Complete
+            if (msg.serverContent?.turnComplete) {
+                saveLiveSessionData();
+            }
+
+            // Handle Interruption
             if (msg.serverContent?.interrupted) {
               audioStreamerRef.current?.stop();
               setIsModelSpeaking(false);
+              // Save what we have so far even if interrupted
+              saveLiveSessionData();
             }
           },
-          onclose: () => setIsLiveActive(false)
+          onclose: () => {
+            setIsLiveActive(false);
+            saveLiveSessionData(); // Ensure final bits are saved
+          },
+          onerror: (e) => {
+             console.error("Live Session Error", e);
+             setIsLiveActive(false);
+             saveLiveSessionData(); // Save whatever we captured before crash
+          }
         }
       });
-    } catch (e) { setIsLiveActive(false); }
+    } catch (e) { 
+        console.error("Failed to connect live session", e);
+        setIsLiveActive(false); 
+    }
   };
 
   return (
@@ -243,14 +322,19 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
                   ))}
                </div>
             </div>
-            <button onClick={toggleLiveSession} className="px-10 py-2.5 bg-red-700 text-white rounded-full text-[8px] font-bold uppercase tracking-widest">End Session</button>
+            {currentTranscription && (
+                <div className="absolute bottom-32 px-8 text-center animate-in slide-in-from-bottom-2">
+                    <p className="text-stone-800 font-serif text-lg italic bg-white/50 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-white/20">"{currentTranscription}"</p>
+                </div>
+            )}
+            <button onClick={toggleLiveSession} className="px-10 py-2.5 bg-red-700 text-white rounded-full text-[8px] font-bold uppercase tracking-widest hover:bg-red-800 transition-colors shadow-lg">End Session</button>
           </div>
         )}
       </div>
 
       <div className="p-4 border-t border-stone-200 bg-white">
         <div className="max-w-xl mx-auto flex items-center gap-3 bg-stone-50 p-1 rounded-full border border-stone-100">
-          <button onClick={toggleLiveSession} className={`w-10 h-10 flex items-center justify-center rounded-full ${isLiveActive ? 'bg-red-600 text-white' : 'bg-stone-900 text-white'}`}>
+          <button onClick={toggleLiveSession} className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${isLiveActive ? 'bg-red-600 text-white scale-110 shadow-lg' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
           </button>
           <input 

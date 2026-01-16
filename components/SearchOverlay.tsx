@@ -55,9 +55,12 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
   }, [query, projects, journalEntries]);
 
   return (
-    <div className="fixed inset-0 z-[200] bg-stone-950/80 backdrop-blur-xl animate-in fade-in duration-300 flex items-start justify-center pt-12 md:pt-24 px-4 pb-12">
+    <div 
+        className="fixed inset-0 z-[200] bg-stone-950/80 backdrop-blur-xl animate-in fade-in duration-300 flex items-start justify-center pt-12 md:pt-24 px-4 pb-20"
+        onClick={onClose}
+    >
       <div 
-        className="max-w-4xl w-full bg-[#fdfcfb] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 h-[85vh] md:h-auto md:max-h-[80vh]"
+        className="max-w-4xl w-full bg-[#fdfcfb] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 h-[80vh] md:h-auto md:max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-8 border-b border-stone-200 flex items-center gap-6 bg-white sticky top-0 z-10">
@@ -71,7 +74,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-900 transition-colors">
+          <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-900 transition-colors hidden md:block">
             <span className="sr-only">Close</span>
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -165,12 +168,23 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
           )}
         </div>
 
-        <div className="p-4 bg-white border-t border-stone-200 flex justify-between items-center px-8 text-[10px] font-mono text-stone-400 uppercase">
+        <div className="hidden md:flex p-4 bg-white border-t border-stone-200 justify-between items-center px-8 text-[10px] font-mono text-stone-400 uppercase">
           <div className="flex gap-6">
             <span className="flex items-center gap-2"><kbd className="bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">↵</kbd> Select</span>
             <span className="flex items-center gap-2"><kbd className="bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">ESC</kbd> Close</span>
           </div>
         </div>
+      </div>
+      
+      {/* Mobile Close Button - Fixed at bottom */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 md:hidden z-[210]">
+        <button 
+            onClick={onClose}
+            className="flex items-center gap-2 px-6 py-3 bg-[#1c1917] text-white rounded-full shadow-2xl active:scale-95 transition-transform"
+        >
+            <span className="text-[10px] font-bold uppercase tracking-widest">Close Search</span>
+            <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">✕</div>
+        </button>
       </div>
     </div>
   );

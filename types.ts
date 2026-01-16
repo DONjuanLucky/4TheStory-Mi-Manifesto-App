@@ -6,6 +6,7 @@ export interface User {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  tourCompleted?: boolean;
 }
 
 export interface Message {
@@ -22,7 +23,15 @@ export interface Chapter {
   order: number;
 }
 
-export type PersonaType = 'empathetic' | 'mentor' | 'provocateur' | 'stoic';
+export interface JournalEntry {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  timestamp: Date;
+}
+
+export type PersonaType = 'empathetic' | 'mentor' | 'provocateur';
 
 export interface Persona {
   id: PersonaType;
@@ -43,7 +52,7 @@ export interface Milestone {
 
 export interface Project {
   id: string;
-  userId: string; // Tied to the user
+  userId: string;
   title: string;
   genre: string;
   persona: PersonaType;
@@ -54,11 +63,13 @@ export interface Project {
   messages: Message[];
   milestones: Milestone[];
   updatedAt: Date;
+  orientationDone: boolean;
 }
 
 export enum AppTab {
   LIBRARY = 'LIBRARY',
   MUSE = 'MUSE',
+  JOURNAL = 'JOURNAL',
   COMMUNITY = 'COMMUNITY',
   MILESTONES = 'MILESTONES'
 }

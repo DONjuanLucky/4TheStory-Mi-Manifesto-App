@@ -63,9 +63,10 @@
       transition: transform 1.2s cubic-bezier(0.23, 1, 0.32, 1);
       box-shadow: 10px 10px 30px rgba(0,0,0,0.1);
       border-radius: 2px 8px 8px 2px;
+      backface-visibility: hidden;
     }
     .book-cover {
-      z-index: 5;
+      z-index: 10;
       background: var(--ink);
       color: white;
       transform: rotateY(0deg);
@@ -81,26 +82,19 @@
       background: rgba(255,255,255,0.1);
     }
     .book.open .book-cover {
-      transform: rotateY(-160deg);
+      transform: rotateY(-165deg);
     }
+    
     .book-page {
-      z-index: 4;
+      z-index: 5;
       background: #fdfdfd;
       padding: 3rem 2rem;
       border: 1px solid #eee;
       transform: rotateY(0deg);
     }
-    .book.open .book-page {
-      transform: rotateY(-15deg);
-    }
-    .book-page-2 {
-      z-index: 3;
-      background: #fafafa;
-      transform: rotateY(0deg);
-    }
-    .book.open .book-page-2 {
-      transform: rotateY(-10deg);
-    }
+    .book.open .page-1 { transform: rotateY(-155deg); z-index: 9; }
+    .book.open .page-2 { transform: rotateY(-145deg); z-index: 8; }
+    .book.open .page-3 { transform: rotateY(-15deg); z-index: 7; }
 
     @keyframes float {
       0%, 100% { transform: translateY(0); }
@@ -115,7 +109,15 @@
     .animate-breathe { animation: breathe 4s ease-in-out infinite; }
 
     .hover-glow { transition: all 0.5s ease; }
-    .hover-glow:hover { box-shadow: 0 0 30px rgba(139, 115, 85, 0.2); transform: translateY(-2px); }
+    .hover-glow:hover { box-shadow: 0 0 40px rgba(139, 115, 85, 0.3); transform: translateY(-4px); }
+    
+    .btn-primary {
+      @apply bg-[#1a1a1a] text-white rounded-full font-bold uppercase tracking-widest transition-all duration-300 transform active:scale-95 hover:bg-[#8b7355] hover:shadow-xl;
+    }
+    
+    .btn-secondary {
+      @apply border border-gray-200 text-gray-500 rounded-full font-bold uppercase tracking-widest transition-all duration-300 transform active:scale-95 hover:border-[#8b7355] hover:text-[#8b7355] hover:bg-[#8b735505];
+    }
 
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: var(--paper); }

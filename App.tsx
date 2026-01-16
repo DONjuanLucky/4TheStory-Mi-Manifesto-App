@@ -9,7 +9,9 @@ import LandingPage from './components/LandingPage';
 import AuthView from './components/AuthView';
 import Community from './components/Community';
 import MilestonesView from './components/MilestonesView';
+import JournalView from './components/JournalView';
 import BottomNav from './components/BottomNav';
+import TourOverlay from './components/TourOverlay';
 import { THEME_COLORS } from './constants';
 import { simulateAuthChange, logout } from './services/authService';
 
@@ -20,6 +22,7 @@ const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTour, setShowTour] = useState(false);
   
   useEffect(() => {
     simulateAuthChange((u) => {
@@ -29,9 +32,9 @@ const App: React.FC = () => {
       const savedProjects = localStorage.getItem('mi_manifesto_projects_v2');
       if (savedProjects) {
         const parsed = JSON.parse(savedProjects) as Project[];
-        // Filter projects for the logged in user
         if (u) {
-          setProjects(parsed.filter(p => p.userId === u.uid));
+          const userProjects = parsed.filter(p => p.userId === u.uid);
+          setProjects(userProjects);
         } else {
           setProjects([]);
         }
@@ -64,12 +67,15 @@ const App: React.FC = () => {
         { id: 'm1', label: 'The First Whisper', target: 1, type: 'wordCount', isPreset: true, completed: false },
         { id: 'm2', label: '1,000 Words', target: 1000, type: 'wordCount', isPreset: true, completed: false }
       ],
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      orientationDone: false
     };
     setProjects([newProject, ...projects]);
     setActiveProjectId(newProject.id);
     setCurrentView(View.MAIN);
     setActiveTab(AppTab.MUSE);
+    
+    setTimeout(() => setShowTour(true), 1500);
   };
 
   const updateProject = (projectId: string, updates: Partial<Project>) => {
@@ -79,6 +85,7 @@ const App: React.FC = () => {
   const handleAuthSuccess = (u: User) => {
     setUser(u);
     setCurrentView(projects.length > 0 ? View.MAIN : View.ONBOARDING);
+    if (projects.length > 0) setShowTour(true);
   };
 
   const renderActiveTab = () => {
@@ -106,9 +113,11 @@ const App: React.FC = () => {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-20 animate-in fade-in duration-1000">
             <h2 className="font-serif text-3xl mb-4 italic text-gray-400">The Muse is waiting in the wings.</h2>
-            <button onClick={() => setActiveTab(AppTab.LIBRARY)} className="px-8 py-3 bg-[#1a1a1a] text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-[#8b7355] transition-all">Select a project</button>
+            <button onClick={() => setActiveTab(AppTab.LIBRARY)} className="px-8 py-3 bg-[#1a1a1a] text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-[#8b7355] transition-all shadow-sm">Select a project</button>
           </div>
         );
+      case AppTab.JOURNAL:
+        return <JournalView user={user} />;
       case AppTab.COMMUNITY:
         return <Community />;
       case AppTab.MILESTONES:
@@ -158,6 +167,7 @@ const App: React.FC = () => {
         {renderActiveTab()}
       </main>
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      {showTour && <TourOverlay onClose={() => { setShowTour(false); localStorage.setItem('tour_dismissed', 'true'); }} />}
     </div>
   );
 };

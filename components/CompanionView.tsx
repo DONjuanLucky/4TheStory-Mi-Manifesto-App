@@ -1,34 +1,39 @@
 
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, Role, Message } from '../types';
+import { Project, Role, Message, Interaction, PersonaType } from '../types';
 import { getGeminiResponse } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
+import { Language, translations } from "../translations";
 
 interface CompanionViewProps {
   project: Project;
   onOpenEditor: () => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
+  lang: Language;
 }
 
-const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, updateProject }) => {
+const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, updateProject, lang }) => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
+  const [isModelSpeaking, setIsModelSpeaking] = useState(false);
+  const [isModelProcessing, setIsModelProcessing] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [committing, setCommitting] = useState(false);
-  const [showDraftPad, setShowDraftPad] = useState(false);
+  const [viewMode, setViewMode] = useState<'chat' | 'ledger' | 'summary'>('chat');
   const [currentTranscription, setCurrentTranscription] = useState('');
+  const t = translations[lang];
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
-  const liveSessionRef = useRef<any>(null);
+  const lastSavedTranscriptionLength = useRef<number>(0);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [project.messages, isTyping, currentTranscription]);
+  }, [project.messages, isTyping, currentTranscription, isModelProcessing]);
 
   useEffect(() => {
     if (project.messages.length === 0 && !isTyping) {
@@ -45,28 +50,31 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     setIsTyping(false);
   };
 
-  const currentPersona = PERSONAS[project.persona];
-
   const updateSoulSummary = async () => {
-    if (project.messages.length < 2) return;
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Review this creative writing session. Update the "Soul Summary" of the book. 
-    Focus on specific emotional beats and plot developments. 
+    const prompt = `Synthesize the current state of this writing project "${project.title}".
     CURRENT SUMMARY: ${project.soulSummary}
-    LATEST CONVERSATION: ${project.messages.slice(-8).map(m => `${m.role}: ${m.content}`).join('\n')}
-    RETURN ONLY THE UPDATED SUMMARY.`;
+    LATEST MESSAGES: ${project.messages.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n')}
+    
+    RETURN A JSON OBJECT WITH TWO FIELDS:
+    1. "soulSummary": A 150-word literary summary.
+    2. "lastBreadcrumb": A 20-word specific summary.`;
     
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: prompt }] }]
+        model: 'gemini-3-pro-preview',
+        contents: [{ parts: [{ text: prompt }] }],
+        config: { responseMimeType: 'application/json' }
       });
-      if (response.text) {
-        updateProject(project.id, { soulSummary: response.text.trim() });
+      
+      const result = JSON.parse(response.text || '{}');
+      if (result.soulSummary) {
+        updateProject(project.id, { 
+          soulSummary: result.soulSummary,
+          lastInteractionSummary: result.lastBreadcrumb 
+        });
       }
-    } catch (e) {
-      console.error("Continuity update failed", e);
-    }
+    } catch (e) { console.error("Continuity update failed", e); }
   };
 
   const handleSend = async (content?: string) => {
@@ -78,30 +86,25 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     updateProject(project.id, { messages: history });
     
     setIsTyping(true);
-    const context = `Project: ${project.title} (${project.genre}). \nSoul Continuity: ${project.soulSummary} \nPersona: ${currentPersona.instruction} ${!project.orientationDone ? '\nRun Discovery Questionnaire logic.' : ''}`;
+    const context = `Project: ${project.title}. Soul Summary: ${project.soulSummary}. Persona: ${PERSONAS[project.persona].instruction}`;
     const response = await getGeminiResponse(text, project.messages, context);
     
-    if (!project.orientationDone && (response.toLowerCase().includes("ready to") || response.toLowerCase().includes("let's begin"))) {
-        updateProject(project.id, { orientationDone: true });
-    }
-
     const assistantMsg: Message = { id: Math.random().toString(), role: 'assistant', content: response, timestamp: new Date() };
     updateProject(project.id, { messages: [...history, assistantMsg] });
     setIsTyping(false);
 
-    if (history.length % 6 === 0) updateSoulSummary();
+    if (history.length % 3 === 0) updateSoulSummary();
   };
 
-  const commitToDraft = async (overrideContent?: string) => {
-    const sourceContent = overrideContent || project.messages.slice(-12).map(m => `${m.role}: ${m.content}`).join('\n');
+  const commitToDraft = async () => {
     setCommitting(true);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `As a world-class literary ghostwriter, curate this conversation into professional prose for "${project.title}". 
-    Write with authentic human depth. Return only the prose.\n\nCONTENT:\n${sourceContent}`;
+    const recentContext = project.messages.slice(-15).map(m => `${m.role}: ${m.content}`).join('\n');
+    const prompt = `Convert this raw dialogue into professional literature. CONTENT:\n${recentContext}`;
     
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: [{ parts: [{ text: prompt }] }]
       });
       
@@ -113,13 +116,9 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
         chapters: updatedChapters,
         currentWordCount: updatedChapters.reduce((acc, curr) => acc + curr.content.trim().split(/\s+/).filter(Boolean).length, 0)
       });
-      await updateSoulSummary();
-      setShowDraftPad(true);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setCommitting(false);
-    }
+      updateSoulSummary();
+      onOpenEditor();
+    } catch (e) { console.error(e); } finally { setCommitting(false); }
   };
 
   const toggleLiveSession = async () => {
@@ -127,36 +126,21 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
       audioRecorderRef.current?.stop();
       audioStreamerRef.current?.stop();
       setIsLiveActive(false);
-      if (currentTranscription.length > 50) {
-        handleSend(`[Spoken Truth]: ${currentTranscription}`);
-      }
-      updateSoulSummary();
       return;
     }
-
     setIsLiveActive(true);
-    setCurrentTranscription('');
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
-
-    // Prepare history snippet for continuity
-    const recentHistory = project.messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n');
-
+    const persona = PERSONAS[project.persona];
     try {
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: SYSTEM_INSTRUCTION_BASE + "\n" + currentPersona.instruction + 
-            `\nContext: ${project.soulSummary}` + 
-            (!project.orientationDone ? `\nORIENTATION MODE ACTIVE: ${ORIENTATION_PROMPT}` : '') +
-            `\n\nCONTINUITY RULE: Start the session by briefly referencing a specific detail or emotional beat from the recent conversation history below. 
-            Demonstrate that you remember where we left off.
-            RECENT HISTORY:\n${recentHistory}`,
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: currentPersona.voice } } },
+          systemInstruction: SYSTEM_INSTRUCTION_BASE + "\n" + persona.instruction,
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: persona.voice } } },
           inputAudioTranscription: {},
-          outputAudioTranscription: {}
         },
         callbacks: {
           onopen: async () => {
@@ -166,224 +150,116 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
           },
           onmessage: (msg: LiveServerMessage) => {
             const data = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (data) audioStreamerRef.current?.play(data);
-            if (msg.serverContent?.interrupted) audioStreamerRef.current?.stop();
+            if (data) {
+              setIsModelSpeaking(true);
+              audioStreamerRef.current?.play(data);
+              setTimeout(() => setIsModelSpeaking(false), 2500); 
+            }
             if (msg.serverContent?.inputTranscription) {
-                setCurrentTranscription(prev => prev + ' ' + msg.serverContent?.inputTranscription?.text);
+              setCurrentTranscription(prev => prev + ' ' + msg.serverContent?.inputTranscription?.text);
+            }
+            if (msg.serverContent?.interrupted) {
+              audioStreamerRef.current?.stop();
+              setIsModelSpeaking(false);
             }
           },
-          onclose: () => setIsLiveActive(false),
-          onerror: () => setIsLiveActive(false)
+          onclose: () => setIsLiveActive(false)
         }
       });
-      liveSessionRef.current = sessionPromise;
-    } catch (e) {
-      console.error("Live session failed", e);
-      setIsLiveActive(false);
-    }
+    } catch (e) { setIsLiveActive(false); }
   };
 
-  const lastChapterContent = project.chapters[project.chapters.length - 1]?.content || "";
-
   return (
-    <div className="flex h-full bg-[#fafaf9] animate-in fade-in duration-1000 overflow-hidden">
-      {/* Sidebar: Drafting Pad */}
-      <div className={`fixed inset-y-0 right-0 w-96 bg-white border-l border-gray-100 shadow-2xl z-50 transform transition-transform duration-700 ease-in-out ${showDraftPad ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="h-full flex flex-col p-10">
-          <div className="flex justify-between items-center mb-10">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.5em] text-[#8b7355]">Legacy Draft</h3>
-            <button onClick={() => setShowDraftPad(false)} className="text-gray-300 hover:text-black p-2 transition-colors">✕</button>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-8 scroll-smooth pr-2">
-            <h4 className="font-serif text-3xl italic tracking-tight">{project.chapters[project.chapters.length - 1]?.title}</h4>
-            <div className="text-sm leading-relaxed text-gray-500 font-serif space-y-6 whitespace-pre-wrap">
-              {lastChapterContent || "Your spoken truth will appear here as curated prose..."}
-            </div>
-          </div>
+    <div className="flex flex-col h-full bg-[#f5f2eb] animate-in fade-in duration-400 overflow-hidden" onClick={() => setShowPersonaMenu(false)}>
+      <header className="px-5 py-2 flex justify-between items-center border-b border-stone-200 bg-white sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-2 relative" onClick={(e) => e.stopPropagation()}>
           <button 
-            onClick={onOpenEditor}
-            className="mt-10 w-full py-5 bg-[#1a1a1a] text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#8b7355] transition-all shadow-xl active:scale-95"
+            onClick={() => setShowPersonaMenu(!showPersonaMenu)}
+            className="flex items-center gap-2 bg-stone-50 hover:bg-stone-100 px-3 py-1 rounded-md border border-stone-100 transition-all active:scale-95"
           >
-            Open Full Editor
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col relative">
-        <header className="px-8 py-6 flex justify-between items-center border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-20 shadow-sm">
-          <div className="flex items-center gap-8">
-            <div className="relative" id="persona-selector">
-              <button 
-                onClick={() => setShowPersonaMenu(!showPersonaMenu)}
-                className="flex items-center gap-3 group transition-all hover:shadow-lg bg-[#f5f5f4] px-5 py-2.5 rounded-2xl border border-gray-100 active:scale-95"
-              >
-                <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center font-serif italic text-white text-xs">
-                  {currentPersona.name[0]}
-                </div>
-                <div className="text-left">
-                  <span className="text-[8px] uppercase tracking-[0.2em] font-bold text-gray-400 block">Personality</span>
-                  <span className="text-xs font-bold text-[#1a1a1a] flex items-center gap-1.5">
-                    {currentPersona.name}
-                    <svg className={`w-3 h-3 transition-transform duration-500 ${showPersonaMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
-                  </span>
-                </div>
-              </button>
-              
-              {showPersonaMenu && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setShowPersonaMenu(false)} />
-                  <div className="absolute top-full left-0 mt-4 w-72 bg-white border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-[2.5rem] p-6 z-40 animate-in fade-in slide-in-from-top-4">
-                    <h4 className="text-[9px] uppercase tracking-[0.3em] font-bold text-gray-300 mb-4 px-2">Select Your Guide</h4>
-                    <div className="space-y-2">
-                      {Object.values(PERSONAS).map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => { updateProject(project.id, { persona: p.id }); setShowPersonaMenu(false); }}
-                          className={`w-full text-left p-4 rounded-2xl transition-all ${project.persona === p.id ? 'bg-[#1a1a1a] text-white shadow-xl scale-105' : 'hover:bg-gray-50'}`}
-                        >
-                          <div className="flex justify-between items-center mb-1">
-                            <p className="font-bold text-xs">{p.name}</p>
-                            <span className={`text-[8px] uppercase tracking-widest ${project.persona === p.id ? 'text-white/40' : 'text-gray-200'}`}>{p.voice}</span>
-                          </div>
-                          <p className={`text-[10px] leading-relaxed ${project.persona === p.id ? 'text-white/60' : 'text-gray-400'}`}>{p.description}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+            <div className="w-5 h-5 rounded-md bg-stone-900 flex items-center justify-center text-white font-serif text-[8px]">
+              {PERSONAS[project.persona].name[0]}
             </div>
-            
-            <button 
-              onClick={() => setShowDraftPad(!showDraftPad)}
-              className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-[#8b7355] transition-all group"
-            >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white border border-gray-100 group-hover:border-[#8b7355] group-hover:bg-[#8b735505] transition-all">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              </div>
-              {showDraftPad ? "Focus View" : "View Progress"}
-            </button>
-          </div>
-
-          <div className="flex gap-4">
-            <button 
-              id="commit-button"
-              onClick={() => commitToDraft()}
-              disabled={committing || project.messages.length < 2}
-              className="px-6 py-3 border border-[#8b735540] text-[#8b7355] rounded-full text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#8b7355] hover:text-white transition-all disabled:opacity-20 flex items-center gap-2 shadow-sm active:scale-95"
-            >
-              {committing && <div className="w-3 h-3 border-2 border-t-transparent border-current rounded-full animate-spin" />}
-              {committing ? "Curation..." : "Commit to Draft"}
-            </button>
-            <button 
-              id="editor-button"
-              onClick={onOpenEditor} 
-              className="px-6 py-3 bg-[#1a1a1a] text-white rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-[#8b7355] transition-all shadow-xl active:scale-95"
-            >
-              Full Editor
-            </button>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-hidden flex flex-col relative">
-          {!project.orientationDone && (
-              <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 bg-[#8b735508] border border-[#8b735530] px-6 py-2.5 rounded-full backdrop-blur-xl animate-pulse shadow-sm">
-                  <span className="text-[10px] font-bold text-[#8b7355] uppercase tracking-[0.3em]">Discovery Session</span>
-              </div>
+            <span className="text-[7px] font-bold text-stone-900 uppercase tracking-widest">{PERSONAS[project.persona].name}</span>
+            <svg className={`w-3 h-3 text-stone-400 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showPersonaMenu && (
+            <div className="absolute top-10 left-0 w-64 bg-white rounded-xl shadow-2xl border border-stone-100 p-2 z-50 animate-in slide-in-from-top-2 fade-in duration-200">
+               <div className="text-[8px] font-bold uppercase tracking-widest text-stone-400 px-3 py-2">Select Voice Agent</div>
+               {Object.values(PERSONAS).map((p) => (
+                 <button
+                   key={p.id}
+                   onClick={() => { updateProject(project.id, { persona: p.id as PersonaType }); setShowPersonaMenu(false); }}
+                   className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors ${project.persona === p.id ? 'bg-stone-900 text-white' : 'hover:bg-stone-50 text-stone-600'}`}
+                 >
+                    <div className={`w-6 h-6 rounded-md flex items-center justify-center font-serif text-[10px] ${project.persona === p.id ? 'bg-white text-stone-900' : 'bg-stone-200 text-stone-500'}`}>
+                      {p.name[0]}
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest leading-none mb-1">{p.name}</div>
+                      <div className={`text-[9px] leading-tight line-clamp-1 ${project.persona === p.id ? 'text-stone-400' : 'text-stone-400'}`}>{p.description}</div>
+                    </div>
+                 </button>
+               ))}
+            </div>
           )}
           
-          <div ref={scrollRef} className={`flex-1 overflow-y-auto px-8 py-12 space-y-12 scroll-smooth ${isLiveActive ? 'opacity-10 blur-xl scale-[0.98]' : 'opacity-100'} transition-all duration-1000`}>
-            {project.messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-                <div className={`max-w-[75%] px-10 py-8 text-xl leading-[1.7] shadow-sm ${m.role === 'user' ? 'bg-white text-[#1a1a1a] rounded-[3rem] rounded-tr-none border border-gray-100' : 'bg-[#f3f0ed] text-[#1a1a1a] rounded-[3rem] rounded-tl-none font-serif italic'}`}>
-                  {m.content}
-                </div>
-              </div>
-            ))}
-            {isTyping && (
-              <div className="flex justify-start">
-                 <div className="bg-[#f3f0ed] rounded-full px-8 py-4 flex gap-2">
-                   <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{animationDelay: '0s'}} />
-                   <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{animationDelay: '0.2s'}} />
-                   <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{animationDelay: '0.4s'}} />
-                 </div>
-              </div>
-            )}
+          <div className="flex gap-1 bg-stone-50 p-0.5 rounded-md border border-stone-100">
+            <button onClick={() => setViewMode('chat')} className={`px-2 py-1 rounded-sm text-[7px] font-bold uppercase tracking-widest transition-all ${viewMode === 'chat' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-300 hover:text-stone-600'}`}>{t.muse_chat}</button>
+            <button onClick={() => setViewMode('ledger')} className={`px-2 py-1 rounded-sm text-[7px] font-bold uppercase tracking-widest transition-all ${viewMode === 'ledger' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-300 hover:text-stone-600'}`}>{t.muse_ledger}</button>
+            <button onClick={() => setViewMode('summary')} className={`px-2 py-1 rounded-sm text-[7px] font-bold uppercase tracking-widest transition-all ${viewMode === 'summary' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-300 hover:text-stone-600'}`}>{t.muse_summary}</button>
           </div>
-
-          {isLiveActive && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/50 animate-in fade-in duration-1000 backdrop-blur-2xl">
-              <div className="relative mb-16">
-                <div className="absolute inset-0 bg-[#8b735520] rounded-full animate-ping opacity-10" style={{ animationDuration: '4s' }} />
-                <div className="w-72 h-72 bg-white rounded-full shadow-[0_40px_100px_rgba(0,0,0,0.1)] flex items-center justify-center border border-gray-50">
-                  <div className="w-56 h-56 bg-[#1a1a1a] rounded-full flex flex-col items-center justify-center overflow-hidden relative">
-                    <div className="flex gap-2 h-16 items-center">
-                      {[1,2,3,4,5,6,7,8].map(i => (
-                        <div 
-                          key={i} 
-                          className="w-1.5 bg-white/60 rounded-full animate-breathe" 
-                          style={{ 
-                            height: `${15 + Math.random()*40}px`, 
-                            animationDelay: `${i * 0.15}s`,
-                            animationDuration: '1.5s' 
-                          }} 
-                        />
-                      ))}
-                    </div>
-                    <span className="text-[10px] text-white/30 uppercase tracking-[0.5em] font-bold absolute bottom-12">Listening...</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="max-w-xl w-full px-10 text-center space-y-8">
-                <h2 className="font-serif text-4xl italic text-[#1a1a1a] tracking-tight">Speak your truth...</h2>
-                <div className="min-h-[100px] p-8 bg-white/90 rounded-[3rem] border border-gray-100 shadow-2xl relative">
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#8b7355] text-white px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest">Live Transcription</div>
-                    <p className="text-base text-gray-500 italic font-serif leading-relaxed line-clamp-3 overflow-y-auto max-h-24">
-                        {currentTranscription || "The Muse is capturing your spoken whisper..."}
-                    </p>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#8b7355]">{currentPersona.name} is with you</p>
-                    <div className="w-12 h-0.5 bg-gray-100 rounded-full" />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="p-10 border-t border-gray-50 bg-white/40">
-          <div className="max-w-3xl mx-auto flex items-center gap-5 bg-white p-3 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-gray-100 focus-within:shadow-[0_20px_50px_rgba(139,115,85,0.1)] transition-all">
-            <button 
-              id="voice-toggle"
-              onClick={toggleLiveSession} 
-              className={`w-16 h-16 flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-500 shadow-lg transform active:scale-90 ${isLiveActive ? 'bg-red-500 text-white animate-pulse' : 'bg-[#1a1a1a] text-white hover:bg-[#8b7355] hover:rotate-3'}`}
-            >
-              {isLiveActive ? (
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-              ) : (
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-              )}
-            </button>
-            <input 
-              className="flex-1 bg-transparent px-6 text-xl font-light focus:outline-none placeholder:text-gray-200" 
-              placeholder={isLiveActive ? "Transcribing live..." : `Speak with your ${currentPersona.name.split(' ').pop()}...`} 
-              value={inputValue} 
-              onChange={e => setInputValue(e.target.value)} 
-              onKeyDown={e => e.key === 'Enter' && handleSend()} 
-              disabled={isLiveActive} 
-            />
-            {!isLiveActive && (
-              <button 
-                onClick={() => handleSend()} 
-                disabled={!inputValue.trim()}
-                className="w-14 h-14 flex items-center justify-center rounded-full text-gray-200 hover:text-[#1a1a1a] hover:bg-gray-50 transition-all disabled:opacity-20 active:scale-95"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </button>
-            )}
+        <button 
+          onClick={commitToDraft}
+          disabled={committing || project.messages.length < 1}
+          className="px-4 py-1.5 bg-[#78350f] text-white rounded-lg text-[7px] font-bold uppercase tracking-widest hover:bg-stone-900 transition-all disabled:opacity-20 shadow-sm"
+        >
+          {committing ? "..." : t.muse_commit}
+        </button>
+      </header>
+
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        <div ref={scrollRef} className={`flex-1 overflow-y-auto px-6 py-6 space-y-5 scroll-smooth ${isLiveActive ? 'opacity-5 blur-xl' : 'opacity-100'} transition-all`}>
+          {project.messages.map((m) => (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-300`}>
+              <div className={`max-w-[85%] px-4 py-3 text-[13px] md:text-[14px] leading-relaxed border ${m.role === 'user' ? 'bg-white text-stone-800 rounded-xl rounded-tr-none border-stone-100' : 'bg-stone-50 text-stone-900 rounded-xl rounded-tl-none font-serif border-stone-200 italic shadow-sm'}`}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {isLiveActive && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-50/70 backdrop-blur-xl animate-in fade-in">
+            <div className="w-24 h-24 rounded-full bg-stone-900 flex items-center justify-center mb-6">
+               <div className="flex gap-1 h-6 items-center">
+                  {[1,2,3,4].map(i => (
+                    <div key={i} className="w-1 bg-[#8b7355] rounded-full animate-breathe" style={{ animationDelay: `${i*0.2}s` }} />
+                  ))}
+               </div>
+            </div>
+            <button onClick={toggleLiveSession} className="px-10 py-2.5 bg-red-700 text-white rounded-full text-[8px] font-bold uppercase tracking-widest">End Session</button>
           </div>
-          <p className="mt-5 text-center text-[9px] text-gray-300 uppercase tracking-[0.4em] font-bold">Sacred Silence • Pure Intent • Authentic Voice</p>
+        )}
+      </div>
+
+      <div className="p-4 border-t border-stone-200 bg-white">
+        <div className="max-w-xl mx-auto flex items-center gap-3 bg-stone-50 p-1 rounded-full border border-stone-100">
+          <button onClick={toggleLiveSession} className={`w-10 h-10 flex items-center justify-center rounded-full ${isLiveActive ? 'bg-red-600 text-white' : 'bg-stone-900 text-white'}`}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+          </button>
+          <input 
+            className="flex-1 bg-transparent px-3 text-[14px] font-light focus:outline-none placeholder:text-stone-300 text-stone-900" 
+            placeholder={t.muse_placeholder} 
+            value={inputValue} 
+            onChange={e => setInputValue(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && handleSend()} 
+          />
         </div>
       </div>
     </div>

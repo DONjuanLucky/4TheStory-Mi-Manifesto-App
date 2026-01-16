@@ -5,110 +5,118 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged, 
-  signOut 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
 } from "firebase/auth";
 import { User } from '../types';
 
-// IMPORTANT: Replace these with your actual keys from the Firebase Console (https://console.firebase.google.com)
-// If you leave them as placeholders, the app will use a robust local simulation mode.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", 
-  authDomain: "4thestory.firebaseapp.com",
-  projectId: "4thestory",
-  storageBucket: "4thestory.appspot.com",
-  messagingSenderId: "SENDER_ID",
-  appId: "APP_ID"
+  apiKey: "AIzaSyAs5z8PBxvy8b_kaSb8sN0nBQfAAmfBIbg",
+  authDomain: "infinityhouse-1794f.firebaseapp.com",
+  databaseURL: "https://infinityhouse-1794f-default-rtdb.firebaseio.com",
+  projectId: "infinityhouse-1794f",
+  storageBucket: "infinityhouse-1794f.firebasestorage.app",
+  messagingSenderId: "750858809775",
+  appId: "1:750858809775:web:6591bbf57fcfdc3899bf5a",
+  measurementId: "G-HXGV6TNPSS"
 };
 
-// Check if we have real config values
-const isRealConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
-
-let auth: any = null;
-
-if (isRealConfig) {
-  try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    console.log("Firebase Auth initialized successfully.");
-  } catch (e) {
-    console.error("Firebase initialization failed:", e);
-  }
-} else {
-  console.warn("Mi Manifesto: Using Local Simulation Mode. Replace placeholders in authService.ts for production Google Auth.");
-}
-
+// Initialize Firebase once
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async (): Promise<User> => {
-  // If we have real Firebase configured, use it.
-  if (auth) {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user: User = {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        photoURL: result.user.photoURL
-      };
-      localStorage.setItem('mi_manifesto_user', JSON.stringify(user));
-      return user;
-    } catch (error: any) {
-      console.error("Google Auth Error:", error.message);
-      // Fallback to simulation if popup fails or is blocked during testing
-      return simulateGoogleLogin();
-    }
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      photoURL: result.user.photoURL
+    };
+  } catch (error: any) {
+    console.error("Google Auth Error:", error.message);
+    throw error;
   }
-
-  // Fallback to simulation
-  return simulateGoogleLogin();
 };
 
-const simulateGoogleLogin = (): Promise<User> => {
+/**
+ * Provides a mock sign-in capability for environments where Firebase 
+ * domain whitelisting is not configured (e.g., local preview sandboxes).
+ */
+export const signInMock = async (): Promise<User> => {
   return new Promise((resolve) => {
     setTimeout(() => {
       const mockUser: User = {
-        uid: "google-sim-" + Math.random().toString(36).substr(2, 9),
-        email: "author@4thestory.com",
-        displayName: "Lucky Author",
-        photoURL: "https://lh3.googleusercontent.com/a/default-user"
+        uid: "mock-user-" + Math.random().toString(36).substr(2, 5),
+        email: "guest@mimanifesto.art",
+        displayName: "Guest Author",
+        photoURL: null
       };
-      localStorage.setItem('mi_manifesto_user', JSON.stringify(mockUser));
+      // We manually persist the mock user for this session if needed, 
+      // but App.tsx handles state updates.
       resolve(mockUser);
-    }, 1000);
+    }, 800);
   });
 };
 
-export const simulateAuthChange = (callback: (user: User | null) => void) => {
-  if (auth) {
-    return onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        const user: User = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL
-        };
-        callback(user);
-      } else {
-        const savedUser = localStorage.getItem('mi_manifesto_user');
-        callback(savedUser ? JSON.parse(savedUser) : null);
-      }
-    });
+export const signUpWithEmail = async (email: string, pass: string): Promise<User> => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    const displayName = email.split('@')[0];
+    await updateProfile(result.user, { displayName });
+    return {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: displayName,
+      photoURL: null
+    };
+  } catch (error: any) {
+    console.error("Email SignUp Error:", error.message);
+    throw error;
   }
+};
 
-  // Mock fallback logic
-  const savedUser = localStorage.getItem('mi_manifesto_user');
-  callback(savedUser ? JSON.parse(savedUser) : null);
+export const signInWithEmail = async (email: string, pass: string): Promise<User> => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    return {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      photoURL: result.user.photoURL
+    };
+  } catch (error: any) {
+    console.error("Email SignIn Error:", error.message);
+    throw error;
+  }
+};
+
+export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
+  return onAuthStateChanged(auth, (firebaseUser) => {
+    if (firebaseUser) {
+      const user: User = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL
+      };
+      callback(user);
+    } else {
+      callback(null);
+    }
+  });
 };
 
 export const logout = async () => {
-  if (auth) {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error("Firebase SignOut error:", e);
-    }
+  try {
+    await signOut(auth);
+    localStorage.removeItem('mi_manifesto_user');
+    window.location.reload();
+  } catch (e) {
+    console.error("Firebase SignOut error:", e);
   }
-  localStorage.removeItem('mi_manifesto_user');
-  window.location.reload();
 };

@@ -88,7 +88,8 @@ export class AudioRecorder {
       this.source = this.audioContext.createMediaStreamSource(this.stream);
       
       // Use ScriptProcessor for raw PCM access
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      // REDUCED BUFFER SIZE: 2048 (approx 128ms latency) to improve interruption responsiveness
+      this.processor = this.audioContext.createScriptProcessor(2048, 1, 1);
       
       this.processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);

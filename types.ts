@@ -7,6 +7,15 @@ export interface User {
   displayName: string | null;
   photoURL: string | null;
   tourCompleted?: boolean;
+  memberSince?: Date;
+}
+
+export interface Interaction {
+  id: string;
+  type: 'voice' | 'text';
+  summary: string;
+  timestamp: Date;
+  committed: boolean;
 }
 
 export interface Message {
@@ -31,7 +40,7 @@ export interface JournalEntry {
   timestamp: Date;
 }
 
-export type PersonaType = 'empathetic' | 'mentor' | 'provocateur';
+export type PersonaType = 'empathetic' | 'mentor' | 'provocateur' | 'espiritu';
 
 export interface Persona {
   id: PersonaType;
@@ -59,9 +68,11 @@ export interface Project {
   targetWordCount: number;
   currentWordCount: number;
   soulSummary: string;
+  lastInteractionSummary?: string;
   chapters: Chapter[];
   messages: Message[];
   milestones: Milestone[];
+  interactions: Interaction[];
   updatedAt: Date;
   orientationDone: boolean;
 }
@@ -71,7 +82,8 @@ export enum AppTab {
   MUSE = 'MUSE',
   JOURNAL = 'JOURNAL',
   COMMUNITY = 'COMMUNITY',
-  MILESTONES = 'MILESTONES'
+  MILESTONES = 'MILESTONES',
+  SEARCH = 'SEARCH'
 }
 
 export enum View {

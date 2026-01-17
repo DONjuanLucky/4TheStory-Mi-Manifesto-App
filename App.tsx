@@ -17,6 +17,7 @@ import HelpOverlay from './components/HelpOverlay';
 import { THEME_COLORS } from './constants';
 import { subscribeToAuthChanges, logout } from './services/authService';
 import { Language } from './translations';
+import { countWords } from './utils/textUtils';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -263,8 +264,19 @@ const App: React.FC = () => {
         onAddChapter={handleAddChapter}
         onUpdateTitle={handleUpdateChapterTitle}
         onUpdateChapter={(id, content) => {
+          // Optimized: Only recalculate words for the changed chapter
+          const oldChapter = activeProject.chapters.find(c => c.id === id);
+          const oldWordCount = oldChapter ? countWords(oldChapter.content) : 0;
+          const newWordCount = countWords(content);
+
           const updatedChapters = activeProject.chapters.map(c => c.id === id ? { ...c, content } : c);
-          const totalWords = updatedChapters.reduce((acc, curr) => acc + curr.content.trim().split(/\s+/).filter(Boolean).length, 0);
+
+          // Calculate new total based on diff
+          // Fallback to full recalculation if something seems off (e.g. currentWordCount < 0) or periodically?
+          // For now, trust the diff, but ensure we don't go below 0.
+          const diff = newWordCount - oldWordCount;
+          const totalWords = Math.max(0, (activeProject.currentWordCount || 0) + diff);
+
           updateProject(activeProject.id, { chapters: updatedChapters, currentWordCount: totalWords });
         }}
       />

@@ -2,7 +2,7 @@
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Role, Message, Interaction, PersonaType } from '../types';
-import { getGeminiResponse } from '../services/geminiService';
+import { getGeminiResponse, ai } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
 import { Language, translations } from "../translations";
@@ -67,7 +67,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   };
 
   const updateSoulSummary = async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Synthesize the current state of this writing project "${project.title}".
     CURRENT SUMMARY: ${project.soulSummary}
     LATEST MESSAGES: ${project.messages.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n')}
@@ -139,7 +138,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
   const commitToDraft = async () => {
     setCommitting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const recentContext = project.messages.slice(-20).map(m => `${m.role}: ${m.content}`).join('\n');
     
     const prompt = `You are a professional literary editor. 
@@ -218,7 +216,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     setIsLiveActive(true);
     liveSessionData.current = { user: '', model: '' };
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];

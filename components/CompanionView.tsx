@@ -3,6 +3,7 @@ import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Role, Message, Interaction, PersonaType } from '../types';
 import { getGeminiResponse } from '../services/geminiService';
+import { memoryBridge } from '../services/memoryBridge';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
 import { Language, translations } from "../translations";
@@ -182,10 +183,16 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
     const newMessages: Message[] = [];
     if (user.trim()) {
-        newMessages.push({ id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() });
+        const userMsg: Message = { id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() };
+        newMessages.push(userMsg);
+        // Push to memory bridge for async processing
+        memoryBridge.pushInteraction(project.id, project.userId, 'user', user.trim());
     }
     if (model.trim()) {
-        newMessages.push({ id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() });
+        const modelMsg: Message = { id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() };
+        newMessages.push(modelMsg);
+        // Push to memory bridge for async processing
+        memoryBridge.pushInteraction(project.id, project.userId, 'assistant', model.trim());
     }
 
     if (newMessages.length > 0) {
@@ -304,6 +311,7 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
         setIsLiveActive(false); 
     }
   };
+
 
   const renderContent = () => {
     if (viewMode === 'summary') {

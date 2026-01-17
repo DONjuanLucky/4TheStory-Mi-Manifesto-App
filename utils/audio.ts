@@ -26,15 +26,15 @@ export class AudioStreamer {
 
     // Convert PCM (16-bit little endian) to AudioBuffer
     const int16Data = new Int16Array(bytes.buffer);
-    const float32Data = new Float32Array(int16Data.length);
-    for (let i = 0; i < int16Data.length; i++) {
-      float32Data[i] = int16Data[i] / 32768.0;
-    }
 
     // Create a buffer at the SOURCE sample rate (24000 for Gemini)
     // The AudioContext will automatically resample this to the hardware rate during playback.
-    const buffer = this.audioContext.createBuffer(1, float32Data.length, 24000);
-    buffer.getChannelData(0).set(float32Data);
+    const buffer = this.audioContext.createBuffer(1, int16Data.length, 24000);
+    const channelData = buffer.getChannelData(0);
+
+    for (let i = 0; i < int16Data.length; i++) {
+      channelData[i] = int16Data[i] / 32768.0;
+    }
 
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;

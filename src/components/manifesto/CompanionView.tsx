@@ -32,6 +32,11 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
   // Refs to accumulate transcripts during a live session
   const liveSessionData = useRef<{ user: string; model: string }>({ user: '', model: '' });
+  const projectRef = useRef(project);
+
+  useEffect(() => {
+    projectRef.current = project;
+  }, [project]);
 
   useEffect(() => {
     if (viewMode === 'chat' && scrollRef.current) {
@@ -202,9 +207,9 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
         committed: false
       };
 
-      updateProject(project.id, {
-        messages: [...project.messages, ...newMessages],
-        interactions: [newInteraction, ...(project.interactions || [])]
+      updateProject(projectRef.current.id, {
+        messages: [...projectRef.current.messages, ...newMessages],
+        interactions: [newInteraction, ...(projectRef.current.interactions || [])]
       });
 
       liveSessionData.current = { user: '', model: '' };
@@ -227,15 +232,15 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
 
-    const historyContext = project.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    const historyContext = projectRef.current.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
     const fullSystemInstruction = `
 ${SYSTEM_INSTRUCTION_BASE}
 ${persona.instruction}
 
 PROJECT CONTEXT:
-Title: "${project.title}"
-Genre: ${project.genre}
-Current Soul Summary: ${project.soulSummary}
+Title: "${projectRef.current.title}"
+Genre: ${projectRef.current.genre}
+Current Soul Summary: ${projectRef.current.soulSummary}
 
 RECENT CHAT HISTORY:
 ${historyContext}
@@ -397,8 +402,8 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
           {project.messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-300`}>
               <div className={`max-w-[85%] px-6 py-4 text-[14px] leading-relaxed rounded-2xl shadow-sm border ${m.role === 'user'
-                  ? 'bg-[#1c1917] text-white rounded-tr-none border-[#1c1917] font-medium'
-                  : 'bg-white text-stone-800 rounded-tl-none font-serif border-stone-200'
+                ? 'bg-[#1c1917] text-white rounded-tr-none border-[#1c1917] font-medium'
+                : 'bg-white text-stone-800 rounded-tl-none font-serif border-stone-200'
                 }`}>
                 {m.content}
               </div>

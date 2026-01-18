@@ -183,7 +183,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     } catch (e) { console.error(e); } finally { setCommitting(false); }
   };
 
-  const saveLiveSessionData = async () => {
+  const saveLiveSessionData = async (isFinalSave: boolean = false) => {
     const { user, model } = liveSessionData.current;
     if (!user.trim() && !model.trim()) return;
 
@@ -205,8 +205,11 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
           updatedAt: Timestamp.now()
         });
 
-        liveSessionData.current = { user: '', model: '' };
-        updateSoulSummary();
+        // Only clear the buffer on final save (session end)
+        if (isFinalSave) {
+          liveSessionData.current = { user: '', model: '' };
+          updateSoulSummary();
+        }
       } catch (e) { console.error("Atomic save failed", e); }
     }
   };
@@ -228,8 +231,8 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona] || PERSONAS.empathetic;
 
-    // Increase context depth to 15 messages for better continuity
-    const historyContext = projectRef.current.messages.slice(-15).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    // Full context depth - 30 messages for maximum continuity
+    const historyContext = projectRef.current.messages.slice(-30).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
     const fullSystemInstruction = `
 ${SYSTEM_INSTRUCTION_BASE}
 ${persona.instruction}
@@ -285,23 +288,23 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
             }
 
             if (msg.serverContent?.turnComplete) {
-              saveLiveSessionData();
+              saveLiveSessionData(false); // Incremental save, don't clear buffer
             }
 
             if (msg.serverContent?.interrupted) {
               audioStreamerRef.current?.stop();
               setIsModelSpeaking(false);
-              saveLiveSessionData();
+              saveLiveSessionData(false);
             }
           },
           onclose: () => {
             setIsLiveActive(false);
-            saveLiveSessionData();
+            saveLiveSessionData(true); // Final save, clear buffer
           },
           onerror: (e) => {
             console.error("Live Session Error", e);
             setIsLiveActive(false);
-            saveLiveSessionData();
+            saveLiveSessionData(true); // Final save on error
           }
         }
       });

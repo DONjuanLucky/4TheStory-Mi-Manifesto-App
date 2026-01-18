@@ -11,6 +11,20 @@ interface SearchOverlayProps {
 
 const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries, onClose, onResultClick }) => {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setDebouncedQuery('');
+      return;
+    }
+
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [query]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -21,8 +35,8 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
   }, [onClose]);
 
   const results = useMemo(() => {
-    if (!query.trim()) return null;
-    const q = query.toLowerCase();
+    if (!debouncedQuery.trim()) return null;
+    const q = debouncedQuery.toLowerCase();
 
     const matchedProjects = projects.filter(p => 
       p.title.toLowerCase().includes(q) || 
@@ -52,7 +66,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
     ].filter(nav => nav.label.toLowerCase().includes(q));
 
     return { projects: matchedProjects, chapters: matchedChapters, journal: matchedJournal, nav: navigationCommands };
-  }, [query, projects, journalEntries]);
+  }, [debouncedQuery, projects, journalEntries]);
 
   return (
     <div 

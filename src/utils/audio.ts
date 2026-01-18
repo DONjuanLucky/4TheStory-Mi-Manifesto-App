@@ -4,7 +4,7 @@ export class AudioStreamer {
   private isPlaying: boolean = false;
   private nextStartTime: number = 0;
   private sources: Set<AudioBufferSourceNode> = new Set();
-  
+
   constructor() {
     // We do not enforce sampleRate in the constructor to avoid hardware mismatch errors.
     // The AudioContext will run at the system default (usually 44.1k or 48k).
@@ -44,10 +44,10 @@ export class AudioStreamer {
     // Schedule next chunk to play immediately after previous one, or now if we've fallen behind
     // We add a tiny buffer (0.05s) if starting fresh to prevent glitching
     const startTime = Math.max(currentTime, this.nextStartTime);
-    
+
     source.start(startTime);
     this.nextStartTime = startTime + buffer.duration;
-    
+
     this.sources.add(source);
     source.onended = () => {
       this.sources.delete(source);
@@ -81,19 +81,19 @@ export class AudioRecorder {
   async start(onData: (base64: string) => void) {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // We try to use 16k to match the model's preference, but some browsers might ignore this.
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      
+
       this.source = this.audioContext.createMediaStreamSource(this.stream);
-      
+
       // Use ScriptProcessor for raw PCM access
       // REDUCED BUFFER SIZE: 2048 (approx 128ms latency) to improve interruption responsiveness
       this.processor = this.audioContext.createScriptProcessor(2048, 1, 1);
-      
+
       this.processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
-        
+
         // Downsample or simply convert Float32 to Int16 PCM
         const int16Data = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -103,9 +103,13 @@ export class AudioRecorder {
         }
 
         // Convert to base64
-        const binary = String.fromCharCode.apply(null, new Uint8Array(int16Data.buffer));
+        const uint8 = new Uint8Array(int16Data.buffer);
+        let binary = "";
+        for (let i = 0; i < uint8.length; i++) {
+          binary += String.fromCharCode(uint8[i]);
+        }
         const base64 = btoa(binary);
-        
+
         onData(base64);
       };
 

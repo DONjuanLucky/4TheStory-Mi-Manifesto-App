@@ -40,8 +40,8 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
 
     const matchedProjects = projects.filter(p => 
       p.title.toLowerCase().includes(q) || 
-      p.genre.toLowerCase().includes(q) ||
-      p.soulSummary.toLowerCase().includes(q)
+      p.genre?.toLowerCase().includes(q) ||
+      p.soulSummary?.toLowerCase().includes(q)
     );
 
     const matchedChapters: { chapter: any; project: Project }[] = [];

@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
+    "functions",
+    "_legacy",
     "functions"
   ]
 }

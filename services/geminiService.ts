@@ -5,7 +5,7 @@ import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { Message } from "../types";
 
 // Fixed: Using process.env.API_KEY directly for initialization as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getGeminiResponse = async (
   userMessage: string, 

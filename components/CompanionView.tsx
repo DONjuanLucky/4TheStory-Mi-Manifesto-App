@@ -2,7 +2,7 @@
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Role, Message, Interaction, PersonaType } from '../types';
-import { getGeminiResponse } from '../services/geminiService';
+import { getGeminiResponse, ai } from '../services/geminiService';
 import { memoryBridge } from '../services/memoryBridge';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
@@ -25,11 +25,11 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   const [viewMode, setViewMode] = useState<'chat' | 'ledger' | 'summary'>('chat');
   const [currentTranscription, setCurrentTranscription] = useState('');
   const t = translations[lang];
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
-  
+
   // Refs to accumulate transcripts during a live session
   const liveSessionData = useRef<{ user: string; model: string }>({ user: '', model: '' });
 
@@ -50,7 +50,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     const context = `NEW PROJECT STARTING. ${ORIENTATION_PROMPT}`;
     const response = await getGeminiResponse("Hello. I'm ready to begin.", [], context);
     const assistantMsg: Message = { id: 'init-msg', role: 'assistant', content: response, timestamp: new Date() };
-    
+
     // Log initial interaction
     const newInteraction: Interaction = {
       id: Math.random().toString(),
@@ -60,7 +60,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
       committed: false
     };
 
-    updateProject(project.id, { 
+    updateProject(project.id, {
       messages: [assistantMsg],
       interactions: [...(project.interactions || []), newInteraction]
     });
@@ -68,7 +68,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   };
 
   const updateSoulSummary = async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Synthesize the current state of this writing project "${project.title}".
     CURRENT SUMMARY: ${project.soulSummary}
     LATEST MESSAGES: ${project.messages.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n')}
@@ -76,19 +75,19 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     RETURN A JSON OBJECT WITH TWO FIELDS:
     1. "soulSummary": A 150-word literary summary describing the heart of the story.
     2. "lastBreadcrumb": A 20-word specific summary of the last discussion.`;
-    
+
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: [{ parts: [{ text: prompt }] }],
         config: { responseMimeType: 'application/json' }
       });
-      
+
       const result = JSON.parse(response.text || '{}');
       if (result.soulSummary) {
-        updateProject(project.id, { 
+        updateProject(project.id, {
           soulSummary: result.soulSummary,
-          lastInteractionSummary: result.lastBreadcrumb 
+          lastInteractionSummary: result.lastBreadcrumb
         });
       }
     } catch (e) { console.error("Continuity update failed", e); }
@@ -113,25 +112,25 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     const newMessage: Message = { id: Math.random().toString(), role: 'user', content: text, timestamp: new Date() };
     const history = [...project.messages, newMessage];
     updateProject(project.id, { messages: history });
-    
+
     setIsTyping(true);
     const context = `Project: ${project.title}. Soul Summary: ${project.soulSummary}. Persona: ${PERSONAS[project.persona].instruction}`;
     const response = await getGeminiResponse(text, project.messages, context);
-    
+
     const assistantMsg: Message = { id: Math.random().toString(), role: 'assistant', content: response, timestamp: new Date() };
-    
+
     // Optimistic update for interactions
     const newInteraction: Interaction = {
-        id: Math.random().toString(),
-        type: 'text',
-        summary: text.substring(0, 60),
-        timestamp: new Date(),
-        committed: false
+      id: Math.random().toString(),
+      type: 'text',
+      summary: text.substring(0, 60),
+      timestamp: new Date(),
+      committed: false
     };
 
-    updateProject(project.id, { 
-        messages: [...history, assistantMsg],
-        interactions: [newInteraction, ...(project.interactions || [])] 
+    updateProject(project.id, {
+      messages: [...history, assistantMsg],
+      interactions: [newInteraction, ...(project.interactions || [])]
     });
     setIsTyping(false);
 
@@ -140,9 +139,8 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
   const commitToDraft = async () => {
     setCommitting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const recentContext = project.messages.slice(-20).map(m => `${m.role}: ${m.content}`).join('\n');
-    
+
     const prompt = `You are a professional literary editor. 
     Transform the following raw conversation/brainstorming session into a POLISHED, STRUCTURED SCENE for a book.
     
@@ -156,19 +154,19 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     ${recentContext}
     
     OUTPUT:`;
-    
+
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: [{ parts: [{ text: prompt }] }]
       });
-      
+
       const newProse = response.text || "";
       const updatedChapters = [...project.chapters];
       const targetChapterIndex = updatedChapters.length - 1;
       updatedChapters[targetChapterIndex].content += "\n\n" + "***\n\n" + newProse;
-      
-      updateProject(project.id, { 
+
+      updateProject(project.id, {
         chapters: updatedChapters,
         currentWordCount: updatedChapters.reduce((acc, curr) => acc + curr.content.trim().split(/\s+/).filter(Boolean).length, 0)
       });
@@ -183,34 +181,34 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
     const newMessages: Message[] = [];
     if (user.trim()) {
-        const userMsg: Message = { id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() };
-        newMessages.push(userMsg);
-        // Push to memory bridge for async processing
-        memoryBridge.pushInteraction(project.id, project.userId, 'user', user.trim());
+      const userMsg: Message = { id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() };
+      newMessages.push(userMsg);
+      // Push to memory bridge for async processing
+      memoryBridge.pushInteraction(project.id, project.userId, 'user', user.trim());
     }
     if (model.trim()) {
-        const modelMsg: Message = { id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() };
-        newMessages.push(modelMsg);
-        // Push to memory bridge for async processing
-        memoryBridge.pushInteraction(project.id, project.userId, 'assistant', model.trim());
+      const modelMsg: Message = { id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() };
+      newMessages.push(modelMsg);
+      // Push to memory bridge for async processing
+      memoryBridge.pushInteraction(project.id, project.userId, 'assistant', model.trim());
     }
 
     if (newMessages.length > 0) {
-        const newInteraction: Interaction = {
-            id: Math.random().toString(),
-            type: 'voice',
-            summary: user.trim().substring(0, 80) + "...",
-            timestamp: new Date(),
-            committed: false
-        };
+      const newInteraction: Interaction = {
+        id: Math.random().toString(),
+        type: 'voice',
+        summary: user.trim().substring(0, 80) + "...",
+        timestamp: new Date(),
+        committed: false
+      };
 
-        updateProject(project.id, { 
-            messages: [...project.messages, ...newMessages],
-            interactions: [newInteraction, ...(project.interactions || [])]
-        });
-        
-        liveSessionData.current = { user: '', model: '' };
-        setCurrentTranscription('');
+      updateProject(project.id, {
+        messages: [...project.messages, ...newMessages],
+        interactions: [newInteraction, ...(project.interactions || [])]
+      });
+
+      liveSessionData.current = { user: '', model: '' };
+      setCurrentTranscription('');
     }
   };
 
@@ -221,15 +219,14 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
       setIsLiveActive(false);
       return;
     }
-    
+
     setIsLiveActive(true);
     liveSessionData.current = { user: '', model: '' };
-    
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
-    
+
     const historyContext = project.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
     const fullSystemInstruction = `
 ${SYSTEM_INSTRUCTION_BASE}
@@ -267,26 +264,26 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
             if (data) {
               setIsModelSpeaking(true);
               audioStreamerRef.current?.play(data);
-              setTimeout(() => setIsModelSpeaking(false), 2500); 
+              setTimeout(() => setIsModelSpeaking(false), 2500);
             }
-            
+
             if (msg.serverContent?.inputTranscription) {
               const text = msg.serverContent.inputTranscription.text;
               if (text) {
-                  liveSessionData.current.user += " " + text;
-                  setCurrentTranscription(prev => prev + " " + text);
+                liveSessionData.current.user += " " + text;
+                setCurrentTranscription(prev => prev + " " + text);
               }
             }
-            
+
             if (msg.serverContent?.outputTranscription) {
               const text = msg.serverContent.outputTranscription.text;
               if (text) {
-                  liveSessionData.current.model += " " + text;
+                liveSessionData.current.model += " " + text;
               }
             }
 
             if (msg.serverContent?.turnComplete) {
-                saveLiveSessionData();
+              saveLiveSessionData();
             }
 
             if (msg.serverContent?.interrupted) {
@@ -300,15 +297,15 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
             saveLiveSessionData();
           },
           onerror: (e) => {
-             console.error("Live Session Error", e);
-             setIsLiveActive(false);
-             saveLiveSessionData();
+            console.error("Live Session Error", e);
+            setIsLiveActive(false);
+            saveLiveSessionData();
           }
         }
       });
-    } catch (e) { 
-        console.error("Failed to connect live session", e);
-        setIsLiveActive(false); 
+    } catch (e) {
+      console.error("Failed to connect live session", e);
+      setIsLiveActive(false);
     }
   };
 
@@ -325,34 +322,34 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-full h-1 bg-[#ea580c]" />
-               <h3 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-6">Soul Summary</h3>
-               <p className="font-serif text-lg leading-loose text-stone-700 italic">
-                 "{project.soulSummary || "The Muse is still listening..."}"
-               </p>
+              <div className="absolute top-0 left-0 w-full h-1 bg-[#ea580c]" />
+              <h3 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-6">Soul Summary</h3>
+              <p className="font-serif text-lg leading-loose text-stone-700 italic">
+                "{project.soulSummary || "The Muse is still listening..."}"
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-               <div className="bg-white p-6 rounded-2xl border border-stone-100">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-300 mb-2">Target Volume</h4>
-                  <p className="font-mono text-2xl text-stone-900">{project.targetWordCount.toLocaleString()}</p>
-               </div>
-               <div className="bg-white p-6 rounded-2xl border border-stone-100">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-300 mb-2">Current Count</h4>
-                  <p className="font-mono text-2xl text-stone-900">{project.currentWordCount.toLocaleString()}</p>
-               </div>
+              <div className="bg-white p-6 rounded-2xl border border-stone-100">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-300 mb-2">Target Volume</h4>
+                <p className="font-mono text-2xl text-stone-900">{project.targetWordCount.toLocaleString()}</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-stone-100">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-300 mb-2">Current Count</h4>
+                <p className="font-mono text-2xl text-stone-900">{project.currentWordCount.toLocaleString()}</p>
+              </div>
             </div>
 
             <div className="space-y-4">
-               <h3 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 pl-2">Active Milestones</h3>
-               {project.milestones.map((m) => (
-                 <div key={m.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-stone-100">
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${m.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-stone-200'}`}>
-                      {m.completed && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                    </div>
-                    <span className={`text-sm ${m.completed ? 'text-stone-400 line-through' : 'text-stone-700'}`}>{m.label}</span>
-                 </div>
-               ))}
+              <h3 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 pl-2">Active Milestones</h3>
+              {project.milestones.map((m) => (
+                <div key={m.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-stone-100">
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${m.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-stone-200'}`}>
+                    {m.completed && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                  <span className={`text-sm ${m.completed ? 'text-stone-400 line-through' : 'text-stone-700'}`}>{m.label}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -365,25 +362,25 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
         <div className="flex-1 overflow-y-auto px-6 py-8 animate-in fade-in duration-500 bg-[#f5f2eb]">
           <div className="max-w-3xl mx-auto space-y-6">
             <h2 className="text-[10px] font-bold uppercase tracking-[0.4em] text-stone-400 mb-8 pl-2">Interaction Log</h2>
-            
+
             {interactions.length === 0 ? (
               <div className="text-center py-20 opacity-50">
-                 <p className="font-serif text-xl italic text-stone-400">No recorded sessions yet.</p>
+                <p className="font-serif text-xl italic text-stone-400">No recorded sessions yet.</p>
               </div>
             ) : (
               interactions.map((interaction) => (
                 <div key={interaction.id} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm flex gap-4 items-start">
                   <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold ${interaction.type === 'voice' ? 'bg-[#ea580c]' : 'bg-stone-800'}`}>
-                     {interaction.type === 'voice' ? 'MIC' : 'TXT'}
+                    {interaction.type === 'voice' ? 'MIC' : 'TXT'}
                   </div>
                   <div className="flex-1">
-                     <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-stone-300">{interaction.type} Session</span>
-                        <span className="text-[10px] font-mono text-stone-300">{new Date(interaction.timestamp).toLocaleDateString()}</span>
-                     </div>
-                     <p className="text-sm text-stone-700 leading-relaxed">
-                       {interaction.summary || "Conversation logged."}
-                     </p>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-stone-300">{interaction.type} Session</span>
+                      <span className="text-[10px] font-mono text-stone-300">{new Date(interaction.timestamp).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-sm text-stone-700 leading-relaxed">
+                      {interaction.summary || "Conversation logged."}
+                    </p>
                   </div>
                 </div>
               ))
@@ -399,40 +396,39 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
         <div ref={scrollRef} className={`flex-1 overflow-y-auto px-6 py-6 space-y-6 scroll-smooth ${isLiveActive ? 'opacity-5 blur-xl' : 'opacity-100'} transition-all`}>
           {project.messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-300`}>
-              <div className={`max-w-[85%] px-6 py-4 text-[14px] leading-relaxed rounded-2xl shadow-sm border ${
-                  m.role === 'user' 
-                  ? 'bg-[#1c1917] text-white rounded-tr-none border-[#1c1917] font-medium' 
+              <div className={`max-w-[85%] px-6 py-4 text-[14px] leading-relaxed rounded-2xl shadow-sm border ${m.role === 'user'
+                  ? 'bg-[#1c1917] text-white rounded-tr-none border-[#1c1917] font-medium'
                   : 'bg-white text-stone-800 rounded-tl-none font-serif border-stone-200'
-              }`}>
+                }`}>
                 {m.content}
               </div>
             </div>
           ))}
           {isTyping && (
-             <div className="flex justify-start animate-pulse">
-                <div className="bg-white px-6 py-4 rounded-2xl rounded-tl-none border border-stone-200">
-                   <div className="flex gap-1">
-                      <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
-                      <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
-                      <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
-                   </div>
+            <div className="flex justify-start animate-pulse">
+              <div className="bg-white px-6 py-4 rounded-2xl rounded-tl-none border border-stone-200">
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 bg-stone-300 rounded-full"></div>
                 </div>
-             </div>
+              </div>
+            </div>
           )}
         </div>
 
         {isLiveActive && (
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-900/90 backdrop-blur-xl animate-in fade-in">
             <div className="w-32 h-32 rounded-full border-2 border-white/10 flex items-center justify-center mb-8 relative">
-               <div className={`absolute inset-0 rounded-full bg-[#ea580c] opacity-20 ${isModelSpeaking ? 'animate-ping' : ''}`}></div>
-               <div className="w-24 h-24 rounded-full bg-[#ea580c] flex items-center justify-center shadow-[0_0_30px_rgba(234,88,12,0.4)]">
-                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-               </div>
+              <div className={`absolute inset-0 rounded-full bg-[#ea580c] opacity-20 ${isModelSpeaking ? 'animate-ping' : ''}`}></div>
+              <div className="w-24 h-24 rounded-full bg-[#ea580c] flex items-center justify-center shadow-[0_0_30px_rgba(234,88,12,0.4)]">
+                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+              </div>
             </div>
             {currentTranscription && (
-                <div className="absolute bottom-32 px-8 text-center animate-in slide-in-from-bottom-2 w-full max-w-lg">
-                    <p className="text-white/90 font-serif text-xl italic leading-relaxed">"{currentTranscription}"</p>
-                </div>
+              <div className="absolute bottom-32 px-8 text-center animate-in slide-in-from-bottom-2 w-full max-w-lg">
+                <p className="text-white/90 font-serif text-xl italic leading-relaxed">"{currentTranscription}"</p>
+              </div>
             )}
             <button onClick={toggleLiveSession} className="px-12 py-4 bg-white text-black rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-stone-200 transition-colors shadow-2xl">End Session</button>
           </div>
@@ -445,7 +441,7 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
     <div className="flex flex-col h-full bg-[#f5f2eb] animate-in fade-in duration-400 overflow-hidden" onClick={() => setShowPersonaMenu(false)}>
       <header className="px-5 py-2 flex justify-between items-center border-b border-stone-200 bg-white sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2 relative" onClick={(e) => e.stopPropagation()}>
-          <button 
+          <button
             onClick={() => setShowPersonaMenu(!showPersonaMenu)}
             className="flex items-center gap-2 bg-stone-50 hover:bg-stone-100 px-3 py-1 rounded-md border border-stone-100 transition-all active:scale-95"
           >
@@ -457,28 +453,28 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          
+
           {showPersonaMenu && (
             <div className="absolute top-10 left-0 w-64 bg-white rounded-xl shadow-2xl border border-stone-100 p-2 z-50 animate-in slide-in-from-top-2 fade-in duration-200">
-               <div className="text-[8px] font-bold uppercase tracking-widest text-stone-400 px-3 py-2">Select Voice Agent</div>
-               {Object.values(PERSONAS).map((p) => (
-                 <button
-                   key={p.id}
-                   onClick={() => { updateProject(project.id, { persona: p.id as PersonaType }); setShowPersonaMenu(false); }}
-                   className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors ${project.persona === p.id ? 'bg-stone-900 text-white' : 'hover:bg-stone-50 text-stone-600'}`}
-                 >
-                    <div className={`w-6 h-6 rounded-md flex items-center justify-center font-serif text-[10px] ${project.persona === p.id ? 'bg-white text-stone-900' : 'bg-stone-200 text-stone-500'}`}>
-                      {p.name[0]}
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest leading-none mb-1">{p.name}</div>
-                      <div className={`text-[9px] leading-tight line-clamp-1 ${project.persona === p.id ? 'text-stone-400' : 'text-stone-400'}`}>{p.description}</div>
-                    </div>
-                 </button>
-               ))}
+              <div className="text-[8px] font-bold uppercase tracking-widest text-stone-400 px-3 py-2">Select Voice Agent</div>
+              {Object.values(PERSONAS).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => { updateProject(project.id, { persona: p.id as PersonaType }); setShowPersonaMenu(false); }}
+                  className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 transition-colors ${project.persona === p.id ? 'bg-stone-900 text-white' : 'hover:bg-stone-50 text-stone-600'}`}
+                >
+                  <div className={`w-6 h-6 rounded-md flex items-center justify-center font-serif text-[10px] ${project.persona === p.id ? 'bg-white text-stone-900' : 'bg-stone-200 text-stone-500'}`}>
+                    {p.name[0]}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest leading-none mb-1">{p.name}</div>
+                    <div className={`text-[9px] leading-tight line-clamp-1 ${project.persona === p.id ? 'text-stone-400' : 'text-stone-400'}`}>{p.description}</div>
+                  </div>
+                </button>
+              ))}
             </div>
           )}
-          
+
           <div className="flex gap-1 bg-stone-50 p-0.5 rounded-md border border-stone-100">
             <button onClick={() => setViewMode('chat')} className={`px-2 py-1 rounded-sm text-[7px] font-bold uppercase tracking-widest transition-all ${viewMode === 'chat' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-400 hover:text-stone-900'}`}>{t.muse_chat}</button>
             <button onClick={() => setViewMode('ledger')} className={`px-2 py-1 rounded-sm text-[7px] font-bold uppercase tracking-widest transition-all ${viewMode === 'ledger' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-400 hover:text-stone-900'}`}>{t.muse_ledger}</button>
@@ -486,7 +482,7 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
           </div>
         </div>
 
-        <button 
+        <button
           onClick={commitToDraft}
           disabled={committing || project.messages.length < 1}
           className="px-4 py-1.5 bg-[#ea580c] text-white rounded-lg text-[7px] font-bold uppercase tracking-widest hover:bg-[#c2410c] transition-all disabled:opacity-20 shadow-sm"
@@ -502,12 +498,12 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
           <button onClick={toggleLiveSession} className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${isLiveActive ? 'bg-red-600 text-white scale-110 shadow-lg' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
           </button>
-          <input 
-            className="flex-1 bg-transparent px-3 text-[14px] font-light focus:outline-none placeholder:text-stone-400 text-stone-900" 
-            placeholder={t.muse_placeholder} 
-            value={inputValue} 
-            onChange={e => setInputValue(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && handleSend()} 
+          <input
+            className="flex-1 bg-transparent px-3 text-[14px] font-light focus:outline-none placeholder:text-stone-400 text-stone-900"
+            placeholder={t.muse_placeholder}
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
           />
         </div>
       </div>

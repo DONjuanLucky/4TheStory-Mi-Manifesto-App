@@ -1,19 +1,19 @@
 
 import { GoogleGenAI } from "@google/genai";
 // Fixed: Using the correct exported member SYSTEM_INSTRUCTION_BASE from constants.ts
-import { SYSTEM_INSTRUCTION_BASE } from "../constants";
-import { Message } from "../types";
+import { SYSTEM_INSTRUCTION_BASE } from "../../constants";
+import { Message } from "../../types";
 
 // Fixed: Using process.env.API_KEY directly for initialization as per guidelines
 export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getGeminiResponse = async (
-  userMessage: string, 
+  userMessage: string,
   history: Message[],
   projectContext?: string
 ) => {
   const model = "gemini-3-flash-preview";
-  
+
   const contents = [
     ...history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',

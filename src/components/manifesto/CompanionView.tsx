@@ -2,12 +2,12 @@ import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
-import { Project, Role, Message, Interaction, PersonaType } from '../types';
-import { getGeminiResponse, ai } from '../services/geminiService';
-import { memoryBridge } from '../services/memoryBridge';
+import { Project, Role, Message, Interaction, PersonaType } from '../../types';
+import { getGeminiResponse, ai } from '../../services/geminiService';
+import { memoryBridge } from '../../services/memoryBridge';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
-import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
-import { Language, translations } from "../translations";
+import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../../constants";
+import { Language, translations } from "../../translations";
 
 interface CompanionViewProps {
   project: Project;

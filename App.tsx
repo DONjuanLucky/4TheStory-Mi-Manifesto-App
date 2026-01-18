@@ -80,9 +80,13 @@ const App: React.FC = () => {
 
   // Persistence Effect
   useEffect(() => {
-    if (projects.length > 0) {
-      localStorage.setItem('mi_manifesto_projects_v3', JSON.stringify(projects));
-    }
+    const timeoutId = setTimeout(() => {
+      if (projects.length > 0) {
+        localStorage.setItem('mi_manifesto_projects_v3', JSON.stringify(projects));
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
   }, [projects]);
 
   const activeProject = projects.find(p => p.id === activeProjectId);

@@ -1,0 +1,7 @@
+{
+  "name": "Mi Manifesto",
+  "description": "A voice-first book writing companion that guides users through their creative journey with empathy and literary elegance.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

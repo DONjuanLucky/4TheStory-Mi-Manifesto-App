@@ -1,7 +1,6 @@
+
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '@/lib/firebase';
-import { doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { Project, Role, Message, Interaction, PersonaType } from '../types';
 import { getGeminiResponse, ai } from '../services/geminiService';
 import { memoryBridge } from '../services/memoryBridge';
@@ -121,8 +120,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     updateProject(project.id, { messages: history });
 
     setIsTyping(true);
-    const persona = PERSONAS[project.persona] || PERSONAS.empathetic;
-    const context = `Project: ${project.title}. Soul Summary: ${project.soulSummary}. Partner Qualities: ${persona.instruction}`;
+    const context = `Project: ${project.title}. Soul Summary: ${project.soulSummary}. Persona: ${PERSONAS[project.persona].instruction}`;
     const response = await getGeminiResponse(text, project.messages, context);
 
     const assistantMsg: Message = { id: Math.random().toString(), role: 'assistant', content: response, timestamp: new Date() };
@@ -183,31 +181,58 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     } catch (e) { console.error(e); } finally { setCommitting(false); }
   };
 
-  const saveLiveSessionData = async () => {
+  const saveLiveSessionData = () => {
     const { user, model } = liveSessionData.current;
     if (!user.trim() && !model.trim()) return;
 
-    const newMessages: any[] = [];
+    const newMessages: Message[] = [];
     if (user.trim()) {
-      newMessages.push({ id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() });
+      const userMsg: Message = { id: Math.random().toString(), role: 'user', content: user.trim(), timestamp: new Date() };
+      newMessages.push(userMsg);
+      // Push to memory bridge for async processing
       memoryBridge.pushInteraction(project.id, project.userId, 'user', user.trim());
     }
     if (model.trim()) {
-      newMessages.push({ id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() });
+      const modelMsg: Message = { id: Math.random().toString(), role: 'assistant', content: model.trim(), timestamp: new Date() };
+      newMessages.push(modelMsg);
+      // Push to memory bridge for async processing
       memoryBridge.pushInteraction(project.id, project.userId, 'assistant', model.trim());
     }
 
     if (newMessages.length > 0) {
-      try {
-        const docRef = doc(db, "projects", project.id);
-        await updateDoc(docRef, {
-          messages: arrayUnion(...newMessages),
-          updatedAt: Timestamp.now()
-        });
+      // Logic for cumulative interaction: use existing ID or create a new one
+      let interactionId = currentSessionInteractionId.current;
+      let existingInteractions = [...(projectRef.current.interactions || [])];
 
-        liveSessionData.current = { user: '', model: '' };
-        updateSoulSummary();
-      } catch (e) { console.error("Atomic save failed", e); }
+      if (!interactionId) {
+        interactionId = Math.random().toString();
+        currentSessionInteractionId.current = interactionId;
+
+        const newInteraction: Interaction = {
+          id: interactionId,
+          type: 'voice',
+          summary: user.trim().substring(0, 80) + "...",
+          timestamp: new Date(),
+          committed: false
+        };
+        existingInteractions = [newInteraction, ...existingInteractions];
+      } else {
+        // Update the existing interaction summary with the latest window of the conversation
+        existingInteractions = existingInteractions.map(inte =>
+          inte.id === interactionId
+            ? { ...inte, summary: user.trim().substring(0, 80) + "..." }
+            : inte
+        );
+      }
+
+      updateProject(projectRef.current.id, {
+        messages: [...projectRef.current.messages, ...newMessages],
+        interactions: existingInteractions
+      });
+
+      liveSessionData.current = { user: '', model: '' };
+      // Note: We don't clear currentTranscription here because it's used for UI feedback
+      updateSoulSummary();
     }
   };
 
@@ -226,7 +251,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
-    const persona = PERSONAS[project.persona] || PERSONAS.empathetic;
+    const persona = PERSONAS[project.persona];
 
     // Increase context depth to 15 messages for better continuity
     const historyContext = projectRef.current.messages.slice(-15).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');

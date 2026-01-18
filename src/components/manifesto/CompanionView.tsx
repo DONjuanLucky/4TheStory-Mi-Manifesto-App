@@ -73,9 +73,9 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   };
 
   const updateSoulSummary = async () => {
-    const prompt = `Synthesize the current state of this writing project "${project.title}".
-    CURRENT SUMMARY: ${project.soulSummary}
-    LATEST MESSAGES: ${project.messages.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n')}
+    const prompt = `Synthesize the current state of this writing project "${projectRef.current.title}".
+    CURRENT SUMMARY: ${projectRef.current.soulSummary}
+    LATEST MESSAGES: ${projectRef.current.messages.slice(-20).map(m => `${m.role}: ${m.content}`).join('\n')}
     
     RETURN A JSON OBJECT WITH TWO FIELDS:
     1. "soulSummary": A 150-word literary summary describing the heart of the story.
@@ -213,7 +213,8 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
       });
 
       liveSessionData.current = { user: '', model: '' };
-      setCurrentTranscription('');
+      // Note: We don't clear currentTranscription here because it's used for UI feedback
+      updateSoulSummary();
     }
   };
 
@@ -227,12 +228,14 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
     setIsLiveActive(true);
     liveSessionData.current = { user: '', model: '' };
+    setCurrentTranscription('');
 
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
 
-    const historyContext = projectRef.current.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    // Increase context depth to 15 messages for better continuity
+    const historyContext = projectRef.current.messages.slice(-15).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
     const fullSystemInstruction = `
 ${SYSTEM_INSTRUCTION_BASE}
 ${persona.instruction}
@@ -287,14 +290,9 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
               }
             }
 
-            if (msg.serverContent?.turnComplete) {
-              saveLiveSessionData();
-            }
-
             if (msg.serverContent?.interrupted) {
               audioStreamerRef.current?.stop();
               setIsModelSpeaking(false);
-              saveLiveSessionData();
             }
           },
           onclose: () => {

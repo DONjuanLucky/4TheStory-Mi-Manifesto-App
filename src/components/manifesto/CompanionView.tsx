@@ -33,6 +33,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
   // Refs to accumulate transcripts during a live session
   const liveSessionData = useRef<{ user: string; model: string }>({ user: '', model: '' });
   const projectRef = useRef(project);
+  const currentSessionInteractionId = useRef<string | null>(null);
 
   useEffect(() => {
     projectRef.current = project;
@@ -199,17 +200,34 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     }
 
     if (newMessages.length > 0) {
-      const newInteraction: Interaction = {
-        id: Math.random().toString(),
-        type: 'voice',
-        summary: user.trim().substring(0, 80) + "...",
-        timestamp: new Date(),
-        committed: false
-      };
+      // Logic for cumulative interaction: use existing ID or create a new one
+      let interactionId = currentSessionInteractionId.current;
+      let existingInteractions = [...(projectRef.current.interactions || [])];
+
+      if (!interactionId) {
+        interactionId = Math.random().toString();
+        currentSessionInteractionId.current = interactionId;
+
+        const newInteraction: Interaction = {
+          id: interactionId,
+          type: 'voice',
+          summary: user.trim().substring(0, 80) + "...",
+          timestamp: new Date(),
+          committed: false
+        };
+        existingInteractions = [newInteraction, ...existingInteractions];
+      } else {
+        // Update the existing interaction summary with the latest window of the conversation
+        existingInteractions = existingInteractions.map(inte =>
+          inte.id === interactionId
+            ? { ...inte, summary: user.trim().substring(0, 80) + "..." }
+            : inte
+        );
+      }
 
       updateProject(projectRef.current.id, {
         messages: [...projectRef.current.messages, ...newMessages],
-        interactions: [newInteraction, ...(projectRef.current.interactions || [])]
+        interactions: existingInteractions
       });
 
       liveSessionData.current = { user: '', model: '' };
@@ -228,6 +246,7 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
     setIsLiveActive(true);
     liveSessionData.current = { user: '', model: '' };
+    currentSessionInteractionId.current = null; // Clear session tracking
     setCurrentTranscription('');
 
     audioStreamerRef.current = new AudioStreamer();
@@ -290,9 +309,14 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
               }
             }
 
+            if (msg.serverContent?.turnComplete) {
+              saveLiveSessionData();
+            }
+
             if (msg.serverContent?.interrupted) {
               audioStreamerRef.current?.stop();
               setIsModelSpeaking(false);
+              saveLiveSessionData();
             }
           },
           onclose: () => {

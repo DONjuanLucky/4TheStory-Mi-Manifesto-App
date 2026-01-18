@@ -1,0 +1,107 @@
+{
+    "navigation": {
+        "projects": "Proyectos",
+        "writing": "Escritura",
+        "uploads": "Subidas",
+        "community": "Comunidad",
+        "signIn": "Iniciar Sesión",
+        "signOut": "Cerrar Sesión",
+        "getStarted": "Comenzar"
+    },
+    "landing": {
+        "hero": {
+            "title": "Escribe tu libro",
+            "subtitle": "con tu voz",
+            "description": "No dejes que la página en blanco te silencie. Habla con tu compañero de IA empático y mira cómo se despliega tu historia.",
+            "cta": "Comenzar"
+        },
+        "dedication": "Para Irma"
+    },
+    "dashboard": {
+        "welcome": "Bienvenido de nuevo, {name}",
+        "readyToContinue": "¿Listo para continuar tu historia?",
+        "newBook": "Nuevo Libro",
+        "createNewProject": "Crear un nuevo proyecto",
+        "noProjects": "Tu viaje de escritura comienza aquí",
+        "noProjectsDesc": "Crea tu primer proyecto de libro y comienza a convertir tu voz en un manuscrito publicado.",
+        "createFirstBook": "Crea Tu Primer Libro",
+        "continueWriting": "Continuar Escribiendo"
+    },
+    "writing": {
+        "title": "Escritura",
+        "noProjects": "Aún No Hay Proyectos",
+        "noProjectsDesc": "Crea tu primer proyecto de libro para comenzar a escribir",
+        "goToProjects": "Ir a Proyectos",
+        "voice": {
+            "title": "Grabación de Voz",
+            "subtitle": "Habla tu historia",
+            "description": "Graba tu voz y observa cómo se transforma en texto escrito. La forma más fácil de escribir.",
+            "cta": "Comenzar Grabación (Próximamente)"
+        },
+        "manual": {
+            "title": "Editor Manual",
+            "subtitle": "Escribe y edita",
+            "description": "Usa el editor de texto tradicional con herramientas de formato y guardado instantáneo.",
+            "cta": "Abrir Editor (Próximamente)"
+        },
+        "ai": {
+            "title": "Compañero de IA para Escribir",
+            "subtitle": "Obtén ayuda y sugerencias",
+            "description": "Chatea con una IA empática que te ayuda a generar ideas, superar el bloqueo del escritor y perfeccionar tu historia.",
+            "cta": "Chatear con IA (Próximamente)"
+        },
+        "stats": {
+            "words": "Palabras",
+            "complete": "Completo",
+            "sessions": "Sesiones"
+        }
+    },
+    "uploads": {
+        "title": "Subidas",
+        "subtitle": "Imágenes, documentos y archivos de investigación",
+        "uploadFiles": "Subir Archivos",
+        "uploadDescription": "Arrastra y suelta archivos aquí, o haz clic para navegar",
+        "chooseFiles": "Elegir Archivos (Próximamente)",
+        "images": "Imágenes",
+        "documents": "Documentos",
+        "other": "Otros",
+        "noFiles": "Aún no se han subido archivos",
+        "filesCount": "{count} archivos"
+    },
+    "community": {
+        "title": "Comunidad",
+        "subtitle": "Conéctate con otros escritores",
+        "comingSoon": "Comunidad Próximamente",
+        "description": "Estamos construyendo un espacio para que compartas tu trabajo, te conectes con otros escritores y recibas comentarios de la comunidad.",
+        "features": {
+            "share": {
+                "title": "Comparte Extractos",
+                "description": "Comparte fragmentos de tu trabajo y recibe reacciones"
+            },
+            "feedback": {
+                "title": "Recibe Comentarios",
+                "description": "Recibe comentarios constructivos de otros autores"
+            },
+            "discover": {
+                "title": "Descubre Historias",
+                "description": "Lee y disfruta obras de la comunidad Mi Manifesto"
+            }
+        }
+    },
+    "projectModal": {
+        "title": "Comenzar un Nuevo Libro",
+        "description": "Dale un título a tu historia para comenzar tu viaje de escritura.",
+        "bookTitle": "Título del Libro",
+        "bookTitlePlaceholder": "Las Montañas Estaban Silenciosas",
+        "descriptionLabel": "Descripción (Opcional)",
+        "descriptionPlaceholder": "Una historia sobre...",
+        "genreLabel": "Género (Opcional)",
+        "genrePlaceholder": "Selecciona un género",
+        "cancel": "Cancelar",
+        "create": "Crear Libro",
+        "creating": "Creando..."
+    },
+    "common": {
+        "loading": "Cargando..."
+    }
+}

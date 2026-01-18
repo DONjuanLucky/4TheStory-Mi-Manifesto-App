@@ -1,0 +1,107 @@
+{
+    "navigation": {
+        "projects": "Projects",
+        "writing": "Writing",
+        "uploads": "Uploads",
+        "community": "Community",
+        "signIn": "Sign In",
+        "signOut": "Sign Out",
+        "getStarted": "Get Started"
+    },
+    "landing": {
+        "hero": {
+            "title": "Write your book",
+            "subtitle": "with your voice",
+            "description": "Don't let the blank page silence you. Talk to your empathetic AI companion and watch your story unfold.",
+            "cta": "Get Started"
+        },
+        "dedication": "For Irma"
+    },
+    "dashboard": {
+        "welcome": "Welcome back, {name}",
+        "readyToContinue": "Ready to continue your story?",
+        "newBook": "New Book",
+        "createNewProject": "Create a new project",
+        "noProjects": "Your writing journey begins here",
+        "noProjectsDesc": "Create your first book project and start turning your voice into a published manuscript.",
+        "createFirstBook": "Create Your First Book",
+        "continueWriting": "Continue Writing"
+    },
+    "writing": {
+        "title": "Writing",
+        "noProjects": "No Projects Yet",
+        "noProjectsDesc": "Create your first book project to start writing",
+        "goToProjects": "Go to Projects",
+        "voice": {
+            "title": "Voice Recording",
+            "subtitle": "Speak your story",
+            "description": "Record your voice and watch it transform into written text. The easiest way to write.",
+            "cta": "Start Recording (Coming Soon)"
+        },
+        "manual": {
+            "title": "Manual Editor",
+            "subtitle": "Type and edit",
+            "description": "Use the traditional text editor with formatting tools and instant saving.",
+            "cta": "Open Editor (Coming Soon)"
+        },
+        "ai": {
+            "title": "AI Writing Companion",
+            "subtitle": "Get help and suggestions",
+            "description": "Chat with an empathetic AI that helps you brainstorm, overcome writer's block, and refine your story.",
+            "cta": "Chat with AI (Coming Soon)"
+        },
+        "stats": {
+            "words": "Words",
+            "complete": "Complete",
+            "sessions": "Sessions"
+        }
+    },
+    "uploads": {
+        "title": "Uploads",
+        "subtitle": "Images, documents, and research files",
+        "uploadFiles": "Upload Files",
+        "uploadDescription": "Drag and drop files here, or click to browse",
+        "chooseFiles": "Choose Files (Coming Soon)",
+        "images": "Images",
+        "documents": "Documents",
+        "other": "Other",
+        "noFiles": "No files uploaded yet",
+        "filesCount": "{count} files"
+    },
+    "community": {
+        "title": "Community",
+        "subtitle": "Connect with fellow writers",
+        "comingSoon": "Community Coming Soon",
+        "description": "We're building a space for you to share your work, connect with other writers, and get feedback from the community.",
+        "features": {
+            "share": {
+                "title": "Share Excerpts",
+                "description": "Share snippets of your work and get reactions"
+            },
+            "feedback": {
+                "title": "Get Feedback",
+                "description": "Receive constructive comments from fellow authors"
+            },
+            "discover": {
+                "title": "Discover Stories",
+                "description": "Read and enjoy works from the Mi Manifesto community"
+            }
+        }
+    },
+    "projectModal": {
+        "title": "Start a New Book",
+        "description": "Give your story a title to begin your writing journey.",
+        "bookTitle": "Book Title",
+        "bookTitlePlaceholder": "The Mountains Were Silent",
+        "descriptionLabel": "Description (Optional)",
+        "descriptionPlaceholder": "A story about...",
+        "genreLabel": "Genre (Optional)",
+        "genrePlaceholder": "Select a genre",
+        "cancel": "Cancel",
+        "create": "Create Book",
+        "creating": "Creating..."
+    },
+    "common": {
+        "loading": "Loading..."
+    }
+}

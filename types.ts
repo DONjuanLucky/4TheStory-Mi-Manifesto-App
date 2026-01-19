@@ -50,6 +50,8 @@ export interface Persona {
   instruction: string;
 }
 
+export type CreativityLevel = 'strict' | 'balanced' | 'creative';
+
 export interface Milestone {
   id: string;
   label: string;
@@ -65,6 +67,7 @@ export interface Project {
   title: string;
   genre: string;
   persona: PersonaType;
+  creativityLevel: CreativityLevel;
   targetWordCount: number;
   currentWordCount: number;
   soulSummary: string;

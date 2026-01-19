@@ -1,12 +1,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
-import { JournalEntry, User } from '../types';
-import { JOURNAL_PROMPTS, PERSONAS, SYSTEM_INSTRUCTION_BASE } from '../constants';
+import { motion, AnimatePresence } from "framer-motion";
+import { JournalEntry, User, CreativityLevel } from '../types';
+import { JOURNAL_PROMPTS, PERSONAS, SYSTEM_INSTRUCTION_BASE, CREATIVITY_INSTRUCTIONS } from '../constants';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 
 interface JournalViewProps {
   user: User | null;
+}
+
+interface TranscriptItem {
+    role: 'user' | 'model';
+    text: string;
 }
 
 const JournalView: React.FC<JournalViewProps> = ({ user }) => {
@@ -15,12 +21,26 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [suggestedPrompt, setSuggestedPrompt] = useState('');
+  
+  // Voice State
   const [isLiveActive, setIsLiveActive] = useState(false);
-  const [currentTranscription, setCurrentTranscription] = useState('');
+  const [isModelSpeaking, setIsModelSpeaking] = useState(false);
+  const [sessionTranscript, setSessionTranscript] = useState<TranscriptItem[]>([]);
+  const [creativityLevel, setCreativityLevel] = useState<CreativityLevel>('balanced');
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
+  const transcriptBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll transcript
+  useEffect(() => {
+    if (transcriptBottomRef.current) {
+        transcriptBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [sessionTranscript]);
 
   useEffect(() => {
     const saved = localStorage.getItem('mi_manifesto_journal');
@@ -75,8 +95,14 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
       audioRecorderRef.current?.stop();
       audioStreamerRef.current?.stop();
       setIsLiveActive(false);
-      if (currentTranscription.trim()) {
-        const newContent = content ? `${content}\n\n[Voice Reflection]: ${currentTranscription.trim()}` : currentTranscription.trim();
+      
+      // Save full transcript to journal content upon closing if desired
+      if (sessionTranscript.length > 0) {
+        const conversationLog = sessionTranscript.map(t => 
+            `${t.role === 'user' ? '[YOU]' : '[MUSE]'}: ${t.text}`
+        ).join('\n');
+        
+        const newContent = content ? `${content}\n\n--- VOICE SESSION ---\n${conversationLog}` : conversationLog;
         setContent(newContent);
         setEntries(prev => prev.map(e => e.id === activeEntryId ? { ...e, content: newContent, timestamp: new Date() } : e));
       }
@@ -86,19 +112,32 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
     if (!activeEntryId) handleNewEntry();
 
     setIsLiveActive(true);
-    setCurrentTranscription('');
+    setSessionTranscript([]);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
+
+    // Use selected creativity level
+    const creativityInstruction = CREATIVITY_INSTRUCTIONS[creativityLevel];
+
+    // Variables to hold partial transcriptions
+    let currentUserContent = '';
+    let currentModelContent = '';
 
     try {
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: `${SYSTEM_INSTRUCTION_BASE}\nYou are the Journal Muse. Listen and support the author in their reflection. Keep it warm and safe.`,
+          systemInstruction: `
+${SYSTEM_INSTRUCTION_BASE}
+${creativityInstruction}
+You are the Journal Muse. Listen and support the author in their reflection. Keep it warm and safe.
+REMEMBER: Do not interrupt the user. Wait for them to finish their thoughts.
+`,
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: PERSONAS.empathetic.voice } } },
           inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onopen: async () => {
@@ -108,12 +147,52 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
           },
           onmessage: (msg: LiveServerMessage) => {
             const data = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (data) audioStreamerRef.current?.play(data);
-            if (msg.serverContent?.inputTranscription) {
-              setCurrentTranscription(prev => prev + ' ' + msg.serverContent?.inputTranscription?.text);
+            if (data) {
+                setIsModelSpeaking(true);
+                audioStreamerRef.current?.play(data);
+                setTimeout(() => setIsModelSpeaking(false), 2500);
             }
+            
+            // Handle User Transcription
+            const userText = msg.serverContent?.inputTranscription?.text;
+            if (userText) {
+                currentUserContent += " " + userText;
+                setSessionTranscript(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last && last.role === 'user') {
+                        return [...prev.slice(0, -1), { role: 'user', text: currentUserContent }];
+                    } else {
+                        return [...prev, { role: 'user', text: currentUserContent }];
+                    }
+                });
+            }
+
+            // Handle Model Transcription
+            const modelText = msg.serverContent?.outputTranscription?.text;
+            if (modelText) {
+                currentModelContent += modelText;
+                setSessionTranscript(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last && last.role === 'model') {
+                        return [...prev.slice(0, -1), { role: 'model', text: currentModelContent }];
+                    } else {
+                        return [...prev, { role: 'model', text: currentModelContent }];
+                    }
+                });
+            }
+
+            // Reset partials on turn complete (this logic keeps the bubbles growing until turn ends)
+            if (msg.serverContent?.turnComplete) {
+                if (currentUserContent.trim()) currentUserContent = '';
+            }
+            
+            if (userText && currentModelContent.trim()) {
+                currentModelContent = '';
+            }
+
             if (msg.serverContent?.interrupted) {
               audioStreamerRef.current?.stop();
+              setIsModelSpeaking(false);
             }
           },
           onclose: () => setIsLiveActive(false),
@@ -183,7 +262,33 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
             {activeEntryId && <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-stone-300 hidden sm:inline">Active Reflection Session</span>}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4 relative">
+             {/* Creativity Settings */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="w-12 h-12 flex items-center justify-center bg-stone-100 rounded-2xl text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-all"
+              >
+                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+              </button>
+              {showSettings && (
+                 <div className="absolute top-14 right-0 w-64 bg-white rounded-xl shadow-xl border border-stone-100 p-4 z-50 animate-in fade-in slide-in-from-top-2">
+                    <h3 className="text-[9px] font-bold uppercase tracking-widest text-stone-400 mb-3">Muse Creativity</h3>
+                    <div className="flex gap-1 bg-stone-100 p-1 rounded-lg">
+                       {(['strict', 'balanced', 'creative'] as CreativityLevel[]).map(l => (
+                          <button
+                            key={l}
+                            onClick={() => { setCreativityLevel(l); setShowSettings(false); }}
+                            className={`flex-1 py-2 text-[8px] font-bold uppercase rounded-md transition-all ${creativityLevel === l ? 'bg-white shadow-sm text-stone-900' : 'text-stone-400 hover:text-stone-600'}`}
+                          >
+                             {l}
+                          </button>
+                       ))}
+                    </div>
+                 </div>
+              )}
+            </div>
+
             <button 
               onClick={toggleVoiceJournaling} 
               className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all shadow-md ${isLiveActive ? 'bg-red-600 text-white animate-pulse' : 'bg-[#1c1917] text-white hover:bg-[#78350f]'}`}
@@ -235,6 +340,79 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
              </div>
           )}
         </div>
+
+        {/* FULL SCREEN JOURNAL MUSE OVERLAY */}
+        <AnimatePresence>
+          {isLiveActive && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="absolute inset-0 z-50 flex flex-col bg-stone-900/95 backdrop-blur-2xl"
+            >
+              {/* Header */}
+              <div className="p-6 flex justify-between items-center border-b border-white/5">
+                <div className="flex items-center gap-3">
+                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                   <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-stone-400">Journaling Session</span>
+                </div>
+                <button 
+                  onClick={toggleVoiceJournaling}
+                  className="px-6 py-2 rounded-full border border-white/20 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-colors"
+                >
+                  End Session
+                </button>
+              </div>
+
+              {/* Central Visualization */}
+              <div className="flex-1 flex flex-col items-center justify-center relative min-h-[300px]">
+                 <motion.div 
+                    animate={{ 
+                      scale: isModelSpeaking ? [1, 1.2, 1] : 1,
+                      opacity: isModelSpeaking ? 0.8 : 0.3
+                    }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                    className="w-48 h-48 rounded-full bg-[#1c1917] blur-[60px] absolute"
+                 />
+                 <div className="relative z-10 w-32 h-32 rounded-full border border-white/10 flex items-center justify-center bg-stone-900">
+                    <div className={`w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)] ${isModelSpeaking ? 'animate-pulse' : ''}`}>
+                         <svg className="w-10 h-10 text-stone-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    </div>
+                 </div>
+                 <div className="mt-8 text-center space-y-2">
+                   <p className="text-stone-500 text-xs uppercase tracking-widest font-bold">
+                      {isModelSpeaking ? "Reflecting..." : "Listening..."}
+                   </p>
+                   <p className="text-stone-600 text-[10px] uppercase tracking-widest">
+                      {creativityLevel} Mode
+                   </p>
+                 </div>
+              </div>
+
+              {/* Real-time Transcription Log */}
+              <div className="h-1/3 bg-black/20 border-t border-white/5 p-6 overflow-y-auto space-y-4">
+                 <div className="max-w-2xl mx-auto space-y-4">
+                    {sessionTranscript.length === 0 && (
+                        <p className="text-center text-stone-600 italic">Spoken reflections will appear here...</p>
+                    )}
+                    {sessionTranscript.map((item, idx) => (
+                        <div key={idx} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] px-4 py-3 rounded-xl text-sm leading-relaxed ${
+                                item.role === 'user' 
+                                ? 'bg-stone-800 text-stone-200' 
+                                : 'text-white font-serif italic'
+                            }`}>
+                                {item.text}
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={transcriptBottomRef} />
+                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

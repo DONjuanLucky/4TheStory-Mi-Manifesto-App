@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { View, AppTab, Project, User, Chapter, JournalEntry, PersonaType } from './types';
 import Dashboard from './components/Dashboard';
@@ -98,6 +97,7 @@ const App: React.FC = () => {
       title,
       genre,
       persona: persona || 'empathetic',
+      creativityLevel: 'balanced',
       targetWordCount: targetWords,
       currentWordCount: 0,
       soulSummary: `The beginning of a ${genre} titled "${title}". The author seeks to find their unique voice.`,

@@ -2,10 +2,10 @@
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { Project, Role, Message, Interaction, PersonaType, Chapter } from '../types';
+import { Project, Role, Message, Interaction, PersonaType, Chapter, CreativityLevel } from '../types';
 import { getGeminiResponse } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
-import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT } from "../constants";
+import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT, CREATIVITY_INSTRUCTIONS } from "../constants";
 import { Language, translations } from "../translations";
 
 interface CompanionViewProps {
@@ -247,9 +247,13 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
     
+    // Inject Creativity Instruction
+    const creativityInstruction = CREATIVITY_INSTRUCTIONS[project.creativityLevel || 'balanced'];
+    
     const historyContext = project.messages.slice(-6).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
     const fullSystemInstruction = `
 ${SYSTEM_INSTRUCTION_BASE}
+${creativityInstruction}
 ${persona.instruction}
 
 PROJECT CONTEXT:
@@ -261,6 +265,7 @@ RECENT CHAT HISTORY:
 ${historyContext}
 
 INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of the project details above.
+REMEMBER: Do not interrupt the user. Allow them to pause and think.
 `;
     // We keep track of partial updates to avoid duplicate logs
     let currentUserContent = '';
@@ -329,18 +334,8 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
                     });
                     currentUserContent = ''; // Reset for next turn
                 }
-                
-                // Model content might trail a bit, but usually turnComplete signals end of user input processing
-                // We often get model text in chunks *after* this or during. 
-                // For safety in this simplified flow, we will check model content on next user input or close.
-                // However, let's try to capture model text when it pauses.
-                // A better approach for the model is strictly relying on text chunks, 
-                // but we need to know when to "seal" the message object. 
-                // We'll rely on the fact that 'user' messages start the next turn.
             }
             
-            // We need to capture model messages into history when user starts talking again or session ends
-            // The simple logic: If we have model content and we receive user content, seal the model content.
             if (userText && currentModelContent.trim()) {
                  sessionHistoryBuffer.current.push({
                     id: Math.random().toString(),
@@ -510,9 +505,14 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
                          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                     </div>
                  </div>
-                 <p className="mt-8 text-stone-500 text-xs uppercase tracking-widest font-bold">
-                    {isModelSpeaking ? "Muse Speaking..." : "Listening..."}
-                 </p>
+                 <div className="mt-8 text-center space-y-2">
+                   <p className="text-stone-500 text-xs uppercase tracking-widest font-bold">
+                      {isModelSpeaking ? "Muse Speaking..." : "Listening..."}
+                   </p>
+                   <p className="text-stone-600 text-[10px] uppercase tracking-widest">
+                      {project.creativityLevel || 'Balanced'} Mode
+                   </p>
+                 </div>
               </div>
 
               {/* Real-time Transcription Log */}
@@ -560,7 +560,26 @@ INSTRUCTION: You are entering a voice session. Be concise, warm, and aware of th
           </button>
           
           {showPersonaMenu && (
-            <div className="absolute top-10 left-0 w-64 bg-white rounded-xl shadow-2xl border border-stone-100 p-2 z-50 animate-in slide-in-from-top-2 fade-in duration-200">
+            <div className="absolute top-10 left-0 w-72 bg-white rounded-xl shadow-2xl border border-stone-100 p-2 z-50 animate-in slide-in-from-top-2 fade-in duration-200">
+               <div className="p-3 border-b border-stone-100 mb-2">
+                 <div className="text-[8px] font-bold uppercase tracking-widest text-stone-400 mb-3">Creativity Level</div>
+                 <div className="flex bg-stone-100 rounded-lg p-1">
+                   {(['strict', 'balanced', 'creative'] as CreativityLevel[]).map((level) => (
+                     <button
+                       key={level}
+                       onClick={(e) => { e.stopPropagation(); updateProject(project.id, { creativityLevel: level }); }}
+                       className={`flex-1 py-1.5 text-[8px] font-bold uppercase tracking-widest rounded-md transition-all ${
+                         (project.creativityLevel || 'balanced') === level 
+                         ? 'bg-white text-stone-900 shadow-sm' 
+                         : 'text-stone-400 hover:text-stone-600'
+                       }`}
+                     >
+                       {level}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
                <div className="text-[8px] font-bold uppercase tracking-widest text-stone-400 px-3 py-2">Select Voice Agent</div>
                {Object.values(PERSONAS).map((p) => (
                  <button

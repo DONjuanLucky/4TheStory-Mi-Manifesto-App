@@ -103,11 +103,13 @@ export class AudioRecorder {
         }
 
         // Convert to base64
-        let binary = '';
         const bytes = new Uint8Array(int16Data.buffer);
+        let binary = '';
         const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-          binary += String.fromCharCode(bytes[i]);
+        const chunkSize = 0x8000; // 32KB chunks to prevent stack overflow
+        for (let i = 0; i < len; i += chunkSize) {
+          // @ts-ignore: apply accepts Uint8Array
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const base64 = btoa(binary);
         

@@ -11,6 +11,18 @@ interface SearchOverlayProps {
 
 const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries, onClose, onResultClick }) => {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setDebouncedQuery('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -20,9 +32,24 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
+  // Pre-process chapters for faster searching
+  const searchableChapters = useMemo(() => {
+    const items: { chapter: any; project: Project; searchString: string }[] = [];
+    for (const p of projects) {
+      for (const c of p.chapters) {
+        items.push({
+          chapter: c,
+          project: p,
+          searchString: (c.title + ' ' + c.content).toLowerCase()
+        });
+      }
+    }
+    return items;
+  }, [projects]);
+
   const results = useMemo(() => {
-    if (!query.trim()) return null;
-    const q = query.toLowerCase();
+    if (!debouncedQuery.trim()) return null;
+    const q = debouncedQuery.toLowerCase();
 
     const matchedProjects = projects.filter(p => 
       p.title.toLowerCase().includes(q) || 
@@ -31,13 +58,13 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
     );
 
     const matchedChapters: { chapter: any; project: Project }[] = [];
-    projects.forEach(p => {
-      p.chapters.forEach(c => {
-        if (c.title.toLowerCase().includes(q) || c.content.toLowerCase().includes(q)) {
-          matchedChapters.push({ chapter: c, project: p });
+    const len = searchableChapters.length;
+    for (let i = 0; i < len; i++) {
+        const item = searchableChapters[i];
+        if (item.searchString.includes(q)) {
+            matchedChapters.push({ chapter: item.chapter, project: item.project });
         }
-      });
-    });
+    }
 
     const matchedJournal = journalEntries.filter(e => 
       e.title.toLowerCase().includes(q) || 
@@ -52,7 +79,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
     ].filter(nav => nav.label.toLowerCase().includes(q));
 
     return { projects: matchedProjects, chapters: matchedChapters, journal: matchedJournal, nav: navigationCommands };
-  }, [query, projects, journalEntries]);
+  }, [debouncedQuery, projects, journalEntries, searchableChapters]);
 
   return (
     <div 

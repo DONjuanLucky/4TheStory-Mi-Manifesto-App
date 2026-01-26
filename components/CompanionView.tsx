@@ -3,7 +3,7 @@ import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Project, Role, Message, Interaction, PersonaType, Chapter, CreativityLevel } from '../types';
-import { getGeminiResponse } from '../services/geminiService';
+import { getGeminiResponse, ai } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, ORIENTATION_PROMPT, CREATIVITY_INSTRUCTIONS } from "../constants";
 import { Language, translations } from "../translations";
@@ -88,7 +88,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     // We use the latest history, either passed in or from props
     const historyToAnalyze = overrideHistory || project.messages;
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Synthesize the current state of this writing project "${project.title}".
     CURRENT SUMMARY: ${project.soulSummary}
     
@@ -152,7 +151,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
 
   const commitToDraft = async () => {
     setCommitting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Prioritize recent messages including voice transcripts
     const recentContext = project.messages.slice(-30).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
@@ -242,7 +240,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     setSessionTranscript([]);
     sessionHistoryBuffer.current = [];
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];

@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Project, Chapter } from '../types';
+import { countWords } from '../utils/textUtils';
 
 interface EditorViewProps {
   project: Project;
@@ -15,7 +16,7 @@ const EditorView: React.FC<EditorViewProps> = ({ project, onBack, onUpdateChapte
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeChapter = project.chapters.find(c => c.id === activeChapterId);
 
-  const wordCount = activeChapter?.content.trim().split(/\s+/).filter(Boolean).length || 0;
+  const wordCount = activeChapter ? countWords(activeChapter.content) : 0;
 
   const handleExport = () => {
     const fullText = project.chapters

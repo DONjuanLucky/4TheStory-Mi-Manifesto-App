@@ -31,7 +31,6 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('en');
   
   // Auth Subscription Effect
-  // CRITICAL FIX: Removed [projects.length] dependency to prevent auth reset on project creation
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges((u) => {
       // If we are already logged in (e.g. via Mock), don't let a null firebase event wipe us out immediately

@@ -34,17 +34,10 @@ const App: React.FC = () => {
   // CRITICAL FIX: Removed [projects.length] dependency to prevent auth reset on project creation
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges((u) => {
-      // If we are already logged in (e.g. via Mock), don't let a null firebase event wipe us out immediately
-      // unless it's a genuine logout event we want to handle. 
-      // For now, we trust the callback 'u' from firebase.
       if (u) {
         setUser({ ...u, memberSince: u.memberSince || new Date() });
       } else {
-        // Only set user to null if we don't have a manually set user (like a guest)
-        // logic handled inside services usually, but here we assume if firebase says null, it's null.
-        // However, to support Guest Mode persistence across re-renders, we should check if we are already 'guest'.
-        // For simplicity in this architecture, we accept the auth state but rely on the dependency fix above.
-        setUser(prev => (prev && prev.email?.includes('guest') ? prev : null));
+        setUser(null);
       }
       setLoading(false);
       

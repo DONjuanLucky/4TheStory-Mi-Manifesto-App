@@ -27,6 +27,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+const MOCK_USER_KEY = 'MI_MANIFESTO_MOCK_USER';
 
 export const signInWithGoogle = async (): Promise<User> => {
   try {
@@ -56,8 +57,7 @@ export const signInMock = async (): Promise<User> => {
         displayName: "Guest Author",
         photoURL: null
       };
-      // We manually persist the mock user for this session if needed, 
-      // but App.tsx handles state updates.
+      localStorage.setItem(MOCK_USER_KEY, JSON.stringify(mockUser));
       resolve(mockUser);
     }, 800);
   });
@@ -96,8 +96,22 @@ export const signInWithEmail = async (email: string, pass: string): Promise<User
 };
 
 export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
+  // Check for local mock user immediately to prevent flashing
+  const mockUserJson = localStorage.getItem(MOCK_USER_KEY);
+  if (mockUserJson) {
+    try {
+      const mockUser = JSON.parse(mockUserJson);
+      callback(mockUser);
+    } catch (e) {
+      console.error("Failed to parse mock user", e);
+    }
+  }
+
   return onAuthStateChanged(auth, (firebaseUser) => {
     if (firebaseUser) {
+      // If a real user is logged in, clear any mock user data to prevent conflicts
+      localStorage.removeItem(MOCK_USER_KEY);
+
       const user: User = {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
@@ -106,7 +120,17 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void) =>
       };
       callback(user);
     } else {
-      callback(null);
+      // Fallback to mock user if available
+      const storedMock = localStorage.getItem(MOCK_USER_KEY);
+      if (storedMock) {
+        try {
+          callback(JSON.parse(storedMock));
+        } catch {
+          callback(null);
+        }
+      } else {
+        callback(null);
+      }
     }
   });
 };
@@ -115,6 +139,7 @@ export const logout = async () => {
   try {
     await signOut(auth);
     localStorage.removeItem('mi_manifesto_user');
+    localStorage.removeItem(MOCK_USER_KEY);
     window.location.reload();
   } catch (e) {
     console.error("Firebase SignOut error:", e);

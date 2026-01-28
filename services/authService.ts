@@ -19,11 +19,10 @@ const firebaseConfig = {
   projectId: "infinityhouse-1794f",
   storageBucket: "infinityhouse-1794f.firebasestorage.app",
   messagingSenderId: "750858809775",
-  appId: "1:750858809775:web:6591bbf57fcfdc3899bf5a",
-  measurementId: "G-HXGV6TNPSS"
+  appId: "1:750858809775:web:04971eb7dc21fed699bf5a",
+  measurementId: "G-CWK7LG56ZP"
 };
 
-// Initialize Firebase once
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
@@ -43,22 +42,15 @@ export const signInWithGoogle = async (): Promise<User> => {
   }
 };
 
-/**
- * Provides a mock sign-in capability for environments where Firebase 
- * domain whitelisting is not configured (e.g., local preview sandboxes).
- */
 export const signInMock = async (): Promise<User> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const mockUser: User = {
-        uid: "mock-user-" + Math.random().toString(36).substr(2, 5),
+      resolve({
+        uid: "guest-" + Math.random().toString(36).substr(2, 5),
         email: "guest@mimanifesto.art",
         displayName: "Guest Author",
         photoURL: null
-      };
-      // We manually persist the mock user for this session if needed, 
-      // but App.tsx handles state updates.
-      resolve(mockUser);
+      });
     }, 800);
   });
 };
@@ -75,7 +67,6 @@ export const signUpWithEmail = async (email: string, pass: string): Promise<User
       photoURL: null
     };
   } catch (error: any) {
-    console.error("Email SignUp Error:", error.message);
     throw error;
   }
 };
@@ -90,7 +81,6 @@ export const signInWithEmail = async (email: string, pass: string): Promise<User
       photoURL: result.user.photoURL
     };
   } catch (error: any) {
-    console.error("Email SignIn Error:", error.message);
     throw error;
   }
 };
@@ -98,13 +88,12 @@ export const signInWithEmail = async (email: string, pass: string): Promise<User
 export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, (firebaseUser) => {
     if (firebaseUser) {
-      const user: User = {
+      callback({
         uid: firebaseUser.uid,
         email: firebaseUser.email,
         displayName: firebaseUser.displayName,
         photoURL: firebaseUser.photoURL
-      };
-      callback(user);
+      });
     } else {
       callback(null);
     }
@@ -112,11 +101,6 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void) =>
 };
 
 export const logout = async () => {
-  try {
-    await signOut(auth);
-    localStorage.removeItem('mi_manifesto_user');
-    window.location.reload();
-  } catch (e) {
-    console.error("Firebase SignOut error:", e);
-  }
+  await signOut(auth);
+  window.location.reload();
 };

@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi Manifesto | The Sanctuary for Vulnerable Storytellers</title>
-  <meta name="description" content="Mi Manifesto is a premium, voice-first editorial suite. Speak your truth, and our empathetic AI Muse structures your vulnerable storytelling into professional prose.">
+  <title>Mi Manifesto | The Sanctuary for Storytellers</title>
+  <meta name="description" content="Mi Manifesto is a premium, voice-first editorial suite. Your spoken truth, curated into timeless literature.">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,60 +14,47 @@
   
   <style>
     :root {
-      --paper: #fcfbf9;
-      --paper-off: #f2f0eb;
-      --ink: #121212;
-      --ink-light: #44403c;
-      --accent: #9a3412; /* Burnt Orange/Cognac */
+      --paper: #fdfcfb;
+      --ink: #0c0a09;
+      --accent: #ea580c; /* Cognac */
+      --accent-muted: #fef3ec;
     }
-    html { scroll-behavior: smooth; }
+    
     body {
       background-color: var(--paper);
       color: var(--ink);
       font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
+
     .font-serif { font-family: 'Playfair Display', serif; }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
 
-    /* Noise Texture - Simplified to prevent SyntaxError */
-    .bg-noise {
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+    /* Custom Selection */
+    ::selection { background: var(--accent); color: white; }
+
+    /* Magazine Grid Helpers */
+    .magazine-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
     }
 
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 4px; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: var(--paper); }
-    ::-webkit-scrollbar-thumb { background: #d6d3d1; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--ink); }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
 
-    /* Animations */
-    @keyframes reveal {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+    /* Ink Well Pulse */
+    @keyframes ink-pulse {
+      0% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 0.5; }
     }
-    .animate-reveal { animation: reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-    /* Book Engine adjustments */
-    .book-scene { perspective: 2500px; width: 280px; height: 400px; position: relative; }
-    .book-body { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 1.4s cubic-bezier(0.23, 1, 0.32, 1); transform: rotateY(-32deg) rotateX(10deg); cursor: pointer; }
-    .book-body.open { transform: rotateY(0deg) rotateX(0deg) translateZ(80px); }
-    .book-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #090908; z-index: 100; border-radius: 2px 6px 6px 2px; transform-origin: left; transition: transform 1.4s cubic-bezier(0.23, 1, 0.32, 1); transform-style: preserve-3d; border-left: 14px solid #000; box-shadow: 20px 20px 50px rgba(0,0,0,0.4); }
-    .book-cover-back { background: #000; z-index: 1; transform: translateZ(-35px); box-shadow: 10px 25px 60px rgba(0,0,0,0.45); }
-    .cover-inside { position: absolute; width: 100%; height: 100%; background: #121211; transform: rotateY(180deg); backface-visibility: hidden; border-radius: 6px 2px 2px 6px; }
-    .book-page-stack { position: absolute; top: 4px; left: 4px; width: calc(100% - 8px); height: calc(100% - 8px); background: #fff; z-index: 50; border-radius: 0 4px 4px 0; transform: translateZ(-32px); }
-    .book-page-item { position: absolute; top: 4px; left: 4px; width: calc(100% - 8px); height: calc(100% - 8px); background-color: #fff; transform-origin: left; transition: transform 1.4s cubic-bezier(0.23, 1, 0.32, 1); z-index: 60; border-radius: 0 4px 4px 0; backface-visibility: hidden; }
-    .book-side-spine { position: absolute; width: 35px; height: 100%; background: #090908; transform: rotateY(-90deg) translateZ(17.5px); left: -17.5px; z-index: 5; }
-    .book-side-edge { position: absolute; width: 35px; height: calc(100% - 8px); background: #fdfdfa; transform: rotateY(90deg) translateZ(calc(280px - 21px)); right: 0; top: 4px; z-index: 4; }
-    .book-body.open .book-cover { transform: rotateY(-175deg); }
-    .book-body.open .page-p1 { transform: rotateY(-165deg); }
-    .book-body.open .page-p2 { transform: rotateY(-14deg); }
-    .book-body.open .page-p3 { transform: rotateY(-7deg); }
-
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .animate-ink-pulse { animation: ink-pulse 3s infinite ease-in-out; }
   </style>
+  
   <script type="importmap">
 {
   "imports": {

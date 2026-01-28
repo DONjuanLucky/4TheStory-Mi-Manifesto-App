@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { THEME_COLORS, PERSONAS } from '../constants';
+// Fixed: Removed unused THEME_COLORS import to resolve build error
+import { PERSONAS } from '../constants';
 import { PersonaType } from '../types';
 import Logo from './Logo';
 

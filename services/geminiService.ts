@@ -1,10 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
-// Fixed: Using the correct exported member SYSTEM_INSTRUCTION_BASE from constants.ts
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { Message } from "../types";
 
-// Fixed: Using process.env.API_KEY directly for initialization as per guidelines
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getGeminiResponse = async (
@@ -30,7 +28,6 @@ export const getGeminiResponse = async (
       model,
       contents: contents as any,
       config: {
-        // Fixed: Using the correct SYSTEM_INSTRUCTION_BASE constant
         systemInstruction: SYSTEM_INSTRUCTION_BASE + (projectContext ? `\n\nSpecific Project Context:\n${projectContext}` : ""),
         temperature: 0.9,
         topP: 0.95,

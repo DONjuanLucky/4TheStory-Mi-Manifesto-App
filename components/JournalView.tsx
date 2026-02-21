@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
+import { Modality, LiveServerMessage } from "@google/genai";
 import { motion, AnimatePresence } from "framer-motion";
 import { JournalEntry, User, CreativityLevel } from '../types';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, CREATIVITY_INSTRUCTIONS } from '../constants';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
+import { ai } from '../services/geminiService';
 
 interface JournalViewProps {
   user: User | null;
@@ -36,7 +37,6 @@ const JournalView: React.FC<JournalViewProps> = ({ user }) => {
 
     setIsLiveActive(true);
     setSessionTranscript([]);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
 

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Project, JournalEntry } from '../types';
+import { escapeRegExp } from '../utils/stringUtils';
 
 interface SearchOverlayProps {
   projects: Project[];
@@ -34,13 +35,12 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
 
   // Pre-process chapters for faster searching
   const searchableChapters = useMemo(() => {
-    const items: { chapter: any; project: Project; searchString: string }[] = [];
+    const items: { chapter: any; project: Project }[] = [];
     for (const p of projects) {
       for (const c of p.chapters) {
         items.push({
           chapter: c,
-          project: p,
-          searchString: (c.title + ' ' + c.content).toLowerCase()
+          project: p
         });
       }
     }
@@ -49,28 +49,30 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ projects, journalEntries,
 
   const results = useMemo(() => {
     if (!debouncedQuery.trim()) return null;
-    const q = debouncedQuery.toLowerCase();
+
+    const regex = new RegExp(escapeRegExp(debouncedQuery), 'i');
 
     const matchedProjects = projects.filter(p => 
-      p.title.toLowerCase().includes(q) || 
-      p.genre.toLowerCase().includes(q) ||
-      p.soulSummary.toLowerCase().includes(q)
+      regex.test(p.title) ||
+      regex.test(p.genre) ||
+      regex.test(p.soulSummary)
     );
 
     const matchedChapters: { chapter: any; project: Project }[] = [];
     const len = searchableChapters.length;
     for (let i = 0; i < len; i++) {
         const item = searchableChapters[i];
-        if (item.searchString.includes(q)) {
+        if (regex.test(item.chapter.title) || regex.test(item.chapter.content)) {
             matchedChapters.push({ chapter: item.chapter, project: item.project });
         }
     }
 
     const matchedJournal = journalEntries.filter(e => 
-      e.title.toLowerCase().includes(q) || 
-      e.content.toLowerCase().includes(q)
+      regex.test(e.title) ||
+      regex.test(e.content)
     );
 
+    const q = debouncedQuery.toLowerCase();
     const navigationCommands = [
       { id: 'new-manifesto', label: 'Start New Manuscript', category: 'Navigation' },
       { id: 'view-archive', label: 'View Archive', category: 'Navigation' },

@@ -33,6 +33,12 @@ const App: React.FC = () => {
   // Auth Subscription Effect
   // CRITICAL FIX: Removed [projects.length] dependency to prevent auth reset on project creation
   useEffect(() => {
+    // Cache for localStorage reads to avoid redundant JSON parsing
+    const cache = {
+      projects: { raw: null as string | null, parsed: [] as Project[] },
+      journal: { raw: null as string | null, parsed: [] as JournalEntry[] }
+    };
+
     const unsubscribe = subscribeToAuthChanges((u) => {
       // If we are already logged in (e.g. via Mock), don't let a null firebase event wipe us out immediately
       // unless it's a genuine logout event we want to handle. 
@@ -49,7 +55,18 @@ const App: React.FC = () => {
       setLoading(false);
       
       const savedProjects = localStorage.getItem('mi_manifesto_projects_v3');
-      const parsedProjects = savedProjects ? JSON.parse(savedProjects) : [];
+      let parsedProjects: Project[] = [];
+
+      if (savedProjects) {
+        if (cache.projects.raw === savedProjects) {
+          parsedProjects = cache.projects.parsed;
+        } else {
+          parsedProjects = JSON.parse(savedProjects);
+          cache.projects = { raw: savedProjects, parsed: parsedProjects };
+        }
+      } else {
+        cache.projects = { raw: null, parsed: [] };
+      }
       
       if (u) {
         const userProjects = parsedProjects.filter((p: Project) => p.userId === u.uid);
@@ -67,9 +84,16 @@ const App: React.FC = () => {
       }
 
       const savedJournal = localStorage.getItem('mi_manifesto_journal');
+      let parsedJournal: JournalEntry[] = [];
+
       if (savedJournal && u) {
-        const parsed = JSON.parse(savedJournal) as JournalEntry[];
-        setJournalEntries(parsed.filter(e => e.userId === u.uid));
+        if (cache.journal.raw === savedJournal) {
+          parsedJournal = cache.journal.parsed;
+        } else {
+          parsedJournal = JSON.parse(savedJournal) as JournalEntry[];
+          cache.journal = { raw: savedJournal, parsed: parsedJournal };
+        }
+        setJournalEntries(parsedJournal.filter(e => e.userId === u.uid));
       }
     });
 

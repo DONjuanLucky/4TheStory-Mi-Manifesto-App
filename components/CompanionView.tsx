@@ -1,9 +1,9 @@
 
-import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
+import { Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Project, Message, Interaction, PersonaType, Chapter, CreativityLevel } from '../types';
-import { getGeminiResponse } from '../services/geminiService';
+import { getGeminiResponse, ai } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
 import { PERSONAS, SYSTEM_INSTRUCTION_BASE, CREATIVITY_INSTRUCTIONS, ORIENTATION_PROMPT } from "../constants";
 import { Language, translations } from "../translations";
@@ -54,7 +54,6 @@ const CompanionView: React.FC<CompanionViewProps> = ({ project, onOpenEditor, up
     setSessionTranscript([]);
     sessionHistoryBuffer.current = [];
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     audioStreamerRef.current = new AudioStreamer();
     audioRecorderRef.current = new AudioRecorder();
     const persona = PERSONAS[project.persona];
@@ -159,7 +158,6 @@ Current Soul Summary: ${project.soulSummary}
 
   const commitToDraft = async () => {
     setCommitting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const history = project.messages.slice(-50).map(m => `${m.role}: ${m.content}`).join('\n');
     
     const prompt = `Synthesize this entire conversation into high-quality, professional prose. 

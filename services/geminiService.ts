@@ -3,7 +3,8 @@ import { GoogleGenAI } from "@google/genai";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { Message } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Fallback to a placeholder if API_KEY is missing (e.g. in tests/CI) to prevent crash on import
+export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "missing-api-key" });
 
 export const getGeminiResponse = async (
   userMessage: string, 

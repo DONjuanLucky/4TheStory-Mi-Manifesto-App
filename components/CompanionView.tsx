@@ -2,6 +2,7 @@
 import { GoogleGenAI, Modality, LiveServerMessage } from "@google/genai";
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
+import { Virtuoso } from 'react-virtuoso';
 import { Project, Message, Interaction, PersonaType, Chapter, CreativityLevel } from '../types';
 import { getGeminiResponse } from '../services/geminiService';
 import { AudioRecorder, AudioStreamer } from '../utils/audio';
@@ -221,25 +222,36 @@ Current Soul Summary: ${project.soulSummary}
       <div className="flex-1 overflow-hidden flex flex-col relative">
         <div className="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none"></div>
         
-        <div className="flex-1 overflow-y-auto p-12 space-y-8 scroll-smooth" ref={transcriptBottomRef}>
-          {project.messages.length === 0 && !isLiveActive && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto space-y-8">
-               <div className="w-24 h-24 bg-stone-100 rounded-full flex items-center justify-center animate-pulse">
-                  <svg className="w-10 h-10 text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-               </div>
-               <h2 className="font-serif text-3xl italic text-stone-300 tracking-tight">The sanctuary is silent. Speak to begin your legacy.</h2>
-               <p className="text-stone-400 text-sm max-w-sm">Tap the microphone to begin the Discovery Questionnaire.</p>
-            </div>
-          )}
-
-          {project.messages.map(m => (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] px-8 py-5 rounded-3xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-[#ea580c] text-white' : 'bg-white border border-stone-200 font-serif italic'}`}>
-                {m.content}
+        {project.messages.length === 0 && !isLiveActive ? (
+          <div className="flex-1 overflow-y-auto p-12 flex flex-col items-center justify-center text-center max-w-xl mx-auto space-y-8">
+              <div className="w-24 h-24 bg-stone-100 rounded-full flex items-center justify-center animate-pulse">
+                <svg className="w-10 h-10 text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
               </div>
-            </div>
-          ))}
-        </div>
+              <h2 className="font-serif text-3xl italic text-stone-300 tracking-tight">The sanctuary is silent. Speak to begin your legacy.</h2>
+              <p className="text-stone-400 text-sm max-w-sm">Tap the microphone to begin the Discovery Questionnaire.</p>
+          </div>
+        ) : (
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={project.messages}
+            followOutput="auto"
+            initialTopMostItemIndex={project.messages.length - 1}
+            initialItemCount={20}
+            components={{
+              Header: () => <div className="h-12" />,
+              Footer: () => <div className="h-12" />
+            }}
+            itemContent={(index, m) => {
+              if (!m) return null;
+              return (
+              <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} px-12 pb-8`}>
+                <div className={`max-w-[70%] px-8 py-5 rounded-3xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-[#ea580c] text-white' : 'bg-white border border-stone-200 font-serif italic'}`}>
+                  {m.content}
+                </div>
+              </div>
+            )}}
+          />
+        )}
 
         {/* Live Overlay */}
         <AnimatePresence>

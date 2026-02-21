@@ -16,6 +16,7 @@ import HelpOverlay from './components/HelpOverlay';
 import { THEME_COLORS } from './constants';
 import { subscribeToAuthChanges, logout } from './services/authService';
 import { Language } from './translations';
+import { countWords } from './utils/textUtils';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -263,8 +264,17 @@ const App: React.FC = () => {
         onAddChapter={handleAddChapter}
         onUpdateTitle={handleUpdateChapterTitle}
         onUpdateChapter={(id, content) => {
+          // Optimization: Calculate diff instead of re-scanning entire project
+          const oldChapter = activeProject.chapters.find(c => c.id === id);
+          if (!oldChapter) return;
+
+          const oldWords = countWords(oldChapter.content);
+          const newWords = countWords(content);
+          const diff = newWords - oldWords;
+
           const updatedChapters = activeProject.chapters.map(c => c.id === id ? { ...c, content } : c);
-          const totalWords = updatedChapters.reduce((acc, curr) => acc + curr.content.trim().split(/\s+/).filter(Boolean).length, 0);
+          const totalWords = activeProject.currentWordCount + diff;
+
           updateProject(activeProject.id, { chapters: updatedChapters, currentWordCount: totalWords });
         }}
       />
